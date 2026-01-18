@@ -68,7 +68,6 @@ Edit `.env.local` and add your credentials:
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 
 # AI Configuration (Claude API)
 ANTHROPIC_API_KEY=your-anthropic-api-key
