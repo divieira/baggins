@@ -51,7 +51,7 @@ Make sure these are in your `.gitignore`:
 1. Go to Settings > API
 2. Copy these values (you'll need them for Vercel):
    - Project URL (NEXT_PUBLIC_SUPABASE_URL)
-   - anon/public key (NEXT_PUBLIC_SUPABASE_ANON_KEY)
+   - anon/public key (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY)
 
 ### 2.4 Configure Authentication
 
@@ -85,7 +85,7 @@ In the Vercel project settings, add these environment variables:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-supabase-anon-key
 ANTHROPIC_API_KEY=your-anthropic-api-key
 NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 ```
