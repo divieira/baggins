@@ -175,7 +175,7 @@ describe('AI Parse Trip API Logic', () => {
   describe('Claude AI Integration', () => {
     it('should use appropriate model and max tokens', () => {
       const aiConfig = {
-        model: 'claude-3-haiku-20240307',
+        model: 'claude-sonnet-4-5',
         max_tokens: 4096
       }
 
