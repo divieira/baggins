@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
     // Use Claude to parse the message and extract trip details
     const aiMessage = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-haiku-20240307',
       max_tokens: 4096,
       system: `You are a trip details parser. Extract structured trip information from user messages.
 

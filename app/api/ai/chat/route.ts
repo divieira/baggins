@@ -69,7 +69,7 @@ ${restaurants?.slice(0, 5).map((r: any) => `- ${r.name}: ${r.description}`).join
 
     // Get AI response
     const aiMessage = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-haiku-20240307',
       max_tokens: 2048,
       system: `You are a helpful travel planning assistant. You help users plan their trips by suggesting attractions, restaurants, and activities based on their preferences.
 
