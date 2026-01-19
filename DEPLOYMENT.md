@@ -60,6 +60,18 @@ Make sure these are in your `.gitignore`:
 3. Configure email templates if desired
 4. Set up email provider (SMTP) or use Supabase's default
 
+### 2.5 Configure Redirect URLs (IMPORTANT!)
+
+**You must configure this after deploying to Vercel, but note it now:**
+
+1. Go to Authentication > URL Configuration
+2. Add to **Redirect URLs**:
+   - `https://your-app.vercel.app/auth/callback` (replace with your actual Vercel URL)
+   - `http://localhost:3000/auth/callback` (for local development)
+3. Set **Site URL** to: `https://your-app.vercel.app`
+
+**Note**: Vercel provides your URL automatically via the `VERCEL_URL` environment variable, so the app will work across different deployments (production and preview). Just make sure to add your production URL to Supabase's allowed redirect URLs.
+
 ## Step 3: Get Anthropic API Key
 
 1. Go to [console.anthropic.com](https://console.anthropic.com)
@@ -87,31 +99,31 @@ In the Vercel project settings, add these environment variables:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-supabase-anon-key
 ANTHROPIC_API_KEY=your-anthropic-api-key
-NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 ```
 
 **Important**:
 - Don't add quotes around the values
-- Update `NEXT_PUBLIC_APP_URL` after first deployment
+- You don't need to set `NEXT_PUBLIC_APP_URL` - Vercel automatically provides `VERCEL_URL` which the app will use
+- For local development, set `NEXT_PUBLIC_APP_URL=http://localhost:3000` in your `.env.local` file
 
 ### 4.3 Deploy
 
 1. Click "Deploy"
 2. Wait for the build to complete (~2-3 minutes)
-3. Copy your deployment URL
+3. Copy your deployment URL (e.g., `https://baggins-abc123.vercel.app`)
 
-### 4.4 Update App URL
+### 4.4 Configure Supabase Auth Redirect
 
-1. Go back to Vercel project settings
-2. Update `NEXT_PUBLIC_APP_URL` with your actual deployment URL
-3. Redeploy (Vercel does this automatically when env vars change)
-
-### 4.5 Configure Supabase Auth Redirect
+**Critical step** - Without this, authentication will redirect to localhost:
 
 1. Go to your Supabase project
 2. Navigate to Authentication > URL Configuration
-3. Add your Vercel URL to "Site URL"
-4. Add `https://your-app.vercel.app/auth/callback` to "Redirect URLs"
+3. Add your Vercel URL to "Site URL": `https://your-app.vercel.app`
+4. Add to "Redirect URLs":
+   - `https://your-app.vercel.app/auth/callback`
+   - `http://localhost:3000/auth/callback` (for local development)
+
+The app automatically uses Vercel's `VERCEL_URL` environment variable, so it will work correctly across all deployments (production and preview branches).
 
 ## Step 5: Verify Deployment
 
@@ -149,10 +161,13 @@ NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 3. Add your custom domain
 4. Follow DNS configuration instructions
 
-### 6.2 Update Environment Variables
+### 6.2 Update Supabase Redirect URLs
 
-1. Update `NEXT_PUBLIC_APP_URL` to your custom domain
-2. Update Supabase auth redirect URLs
+1. Go to Supabase Authentication > URL Configuration
+2. Update "Site URL" to your custom domain
+3. Add your custom domain to "Redirect URLs": `https://yourdomain.com/auth/callback`
+
+No need to update `NEXT_PUBLIC_APP_URL` - Vercel's `VERCEL_URL` automatically updates to match your custom domain.
 
 ## Monitoring & Maintenance
 
@@ -198,9 +213,10 @@ Supabase free tier doesn't include automatic backups. Consider:
 - **Check**: Supabase RLS policies are set up (run migration again)
 - **Check**: User is logged in
 
-**Error**: Auth callback fails
-- **Check**: Redirect URL is configured in Supabase
-- **Check**: `NEXT_PUBLIC_APP_URL` matches your deployment URL
+**Error**: Auth callback fails or redirects to localhost
+- **Check**: Your Vercel URL is added to Supabase's allowed redirect URLs
+- **Check**: Supabase "Site URL" is set to your production domain
+- **Check**: You've added `https://your-app.vercel.app/auth/callback` to redirect URLs
 
 ## Security Checklist
 

@@ -76,6 +76,8 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
+**Note for production**: When deploying to Vercel, you don't need to set `NEXT_PUBLIC_APP_URL` - Vercel automatically provides a `VERCEL_URL` environment variable that will be used automatically. Just make sure to configure your Supabase redirect URLs (see deployment guide).
+
 ### 6. Run Development Server
 
 ```bash
