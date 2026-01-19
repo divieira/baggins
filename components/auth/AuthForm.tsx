@@ -27,11 +27,13 @@ export function AuthForm() {
         if (error) throw error
         router.push('/dashboard')
       } else {
+        // Use environment variable for redirect URL if set, otherwise use current origin
+        const redirectUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: `${redirectUrl}/auth/callback`,
           },
         })
         if (error) throw error
