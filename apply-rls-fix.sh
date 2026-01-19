@@ -6,8 +6,12 @@
 set -e
 
 echo "========================================"
-echo "Applying Trips RLS Recursion Fix"
+echo "Applying Database Fixes"
 echo "========================================"
+echo ""
+echo "This will apply:"
+echo "  1. RLS Recursion Fix"
+echo "  2. Auto User Creation"
 echo ""
 
 # Check if supabase CLI is available
@@ -30,26 +34,41 @@ fi
 echo "✓ Linked to Supabase project"
 echo ""
 
-# Apply the migration
-echo "📝 Applying migration: 20260119000000_fix_trips_recursion.sql"
+# Apply the migrations
+echo "📝 Applying migrations..."
 echo ""
 
 supabase db push
 
 echo ""
-echo "✅ Migration applied!"
+echo "✅ Migrations applied!"
 echo ""
 
-# Run the test script
+# Run verification tests
 echo "🧪 Running verification tests..."
 echo ""
 
+echo "Test 1: RLS Recursion Fix"
+echo "---"
 supabase db execute --file supabase/test-rls-fix.sql
 
 echo ""
+echo "Test 2: User Creation"
+echo "---"
+supabase db execute --file supabase/test-user-creation.sql
+
+echo ""
+echo "Test 3: Complete Flow"
+echo "---"
+supabase db execute --file supabase/test-complete-flow.sql
+
+echo ""
 echo "========================================"
-echo "✅ RLS Fix Applied and Verified!"
+echo "✅ All Fixes Applied and Verified!"
 echo "========================================"
 echo ""
-echo "The infinite recursion issue should now be resolved."
+echo "Both issues should now be resolved:"
+echo "  ✓ Infinite recursion fixed"
+echo "  ✓ Foreign key constraint fixed"
+echo ""
 echo "Try creating a trip in the app to verify."
