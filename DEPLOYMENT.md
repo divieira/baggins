@@ -66,8 +66,10 @@ Make sure these are in your `.gitignore`:
 
 1. Go to Authentication > URL Configuration
 2. Add to **Redirect URLs**:
-   - `https://your-app.vercel.app/auth/callback` (replace with your actual Vercel URL)
+   - `https://your-app.vercel.app/auth/callback` (for sign up confirmation)
+   - `https://your-app.vercel.app/auth/reset-password` (for password reset)
    - `http://localhost:3000/auth/callback` (for local development)
+   - `http://localhost:3000/auth/reset-password` (for local password reset)
 3. Set **Site URL** to: `https://your-app.vercel.app`
 
 **Note**: Vercel provides your URL automatically via the `VERCEL_URL` environment variable, so the app will work across different deployments (production and preview). Just make sure to add your production URL to Supabase's allowed redirect URLs.
@@ -120,8 +122,10 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 2. Navigate to Authentication > URL Configuration
 3. Add your Vercel URL to "Site URL": `https://your-app.vercel.app`
 4. Add to "Redirect URLs":
-   - `https://your-app.vercel.app/auth/callback`
+   - `https://your-app.vercel.app/auth/callback` (for sign up)
+   - `https://your-app.vercel.app/auth/reset-password` (for password reset)
    - `http://localhost:3000/auth/callback` (for local development)
+   - `http://localhost:3000/auth/reset-password` (for local password reset)
 
 The app automatically uses Vercel's `VERCEL_URL` environment variable, so it will work correctly across all deployments (production and preview branches).
 
@@ -165,7 +169,9 @@ The app automatically uses Vercel's `VERCEL_URL` environment variable, so it wil
 
 1. Go to Supabase Authentication > URL Configuration
 2. Update "Site URL" to your custom domain
-3. Add your custom domain to "Redirect URLs": `https://yourdomain.com/auth/callback`
+3. Add your custom domain to "Redirect URLs":
+   - `https://yourdomain.com/auth/callback`
+   - `https://yourdomain.com/auth/reset-password`
 
 No need to update `NEXT_PUBLIC_APP_URL` - Vercel's `VERCEL_URL` automatically updates to match your custom domain.
 
