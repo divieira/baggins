@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
 
 interface Traveler {
   name: string
@@ -214,6 +215,14 @@ export default function NewTrip() {
       </nav>
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-900">
+            <strong>Try our AI-powered trip creator!</strong> Simply paste a message describing your trip and let Claude fill in the details.{' '}
+            <Link href="/dashboard/trips/new-message" className="text-blue-600 hover:text-blue-700 font-medium underline">
+              Create with AI →
+            </Link>
+          </p>
+        </div>
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Basic Info */}
           <div className="bg-white p-6 rounded-lg shadow-md">
