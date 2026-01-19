@@ -42,6 +42,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Check if API key is configured
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        { error: 'API key not configured. Please set ANTHROPIC_API_KEY in your environment variables.' },
+        { status: 500 }
+      )
+    }
+
     // Use Claude to parse the message and extract trip details
     const aiMessage = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
@@ -251,6 +259,22 @@ Example output:
     })
   } catch (error: any) {
     console.error('Error parsing trip:', error)
+
+    // Handle Anthropic API errors specifically
+    if (error.status === 404) {
+      return NextResponse.json(
+        { error: 'AI model not available. Please check your ANTHROPIC_API_KEY or try again later.' },
+        { status: 500 }
+      )
+    }
+
+    if (error.status === 401) {
+      return NextResponse.json(
+        { error: 'Invalid API key. Please check your ANTHROPIC_API_KEY configuration.' },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(
       { error: error.message || 'Failed to parse trip details' },
       { status: 500 }

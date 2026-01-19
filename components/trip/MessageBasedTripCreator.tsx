@@ -105,7 +105,7 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="message" className="block text-sm font-medium text-gray-200 mb-2">
             {tripId ? 'Update Trip Details' : 'Describe Your Trip'}
           </label>
           <textarea
