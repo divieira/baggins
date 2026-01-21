@@ -1,0 +1,21 @@
+{
+  "name": "Baggins - AI Travel Planner",
+  "short_name": "Baggins",
+  "description": "Plan your perfect trip with AI-powered suggestions",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/"
+}
