@@ -5,7 +5,7 @@ import { eachDayOfInterval, format } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import type { Trip, Flight, Hotel, Traveler, PlanVersion, TimeBlock } from '@/types'
 import DayCard from './DayCard'
-import AIChat from '../ai/AIChat'
+import PlanModifier from '../ai/PlanModifier'
 
 interface Props {
   trip: Trip
@@ -18,8 +18,8 @@ interface Props {
 export default function TripTimeline({ trip, flights, hotels, travelers, initialVersion }: Props) {
   const [loading, setLoading] = useState(false)
   const [currentVersion, setCurrentVersion] = useState(initialVersion)
+  const [allVersions, setAllVersions] = useState<PlanVersion[]>(initialVersion ? [initialVersion] : [])
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([])
-  const [showAIChat, setShowAIChat] = useState(true)
   const supabase = createClient()
 
   const days = eachDayOfInterval({
@@ -31,30 +31,66 @@ export default function TripTimeline({ trip, flights, hotels, travelers, initial
     initializePlan()
   }, [trip.id])
 
+  useEffect(() => {
+    if (currentVersion) {
+      loadTimeBlocks(currentVersion.id)
+    }
+  }, [currentVersion])
+
   const initializePlan = async () => {
     setLoading(true)
     try {
-      // If no plan version exists, create initial one
-      if (!currentVersion) {
-        await generateInitialPlan()
-      } else {
-        // Load existing time blocks
-        const { data } = await supabase
-          .from('time_blocks')
-          .select('*')
-          .eq('plan_version_id', currentVersion.id)
-          .order('date')
-          .order('start_time')
+      // Load all versions
+      const { data: versions } = await supabase
+        .from('plan_versions')
+        .select('*')
+        .eq('trip_id', trip.id)
+        .order('version_number', { ascending: true })
 
-        if (data) {
-          setTimeBlocks(data)
-        }
+      if (versions && versions.length > 0) {
+        setAllVersions(versions)
+        // Set current version to the latest
+        const latestVersion = versions[versions.length - 1]
+        setCurrentVersion(latestVersion)
+      } else {
+        // If no plan version exists, create initial one
+        await generateInitialPlan()
       }
     } catch (error) {
       console.error('Error initializing plan:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadTimeBlocks = async (versionId: string) => {
+    const { data } = await supabase
+      .from('time_blocks')
+      .select('*')
+      .eq('plan_version_id', versionId)
+      .order('date')
+      .order('start_time')
+
+    if (data) {
+      setTimeBlocks(data)
+    }
+  }
+
+  const handleVersionChange = async (direction: 'prev' | 'next') => {
+    if (!currentVersion) return
+
+    const currentIndex = allVersions.findIndex(v => v.id === currentVersion.id)
+    if (currentIndex === -1) return
+
+    const newIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1
+    if (newIndex >= 0 && newIndex < allVersions.length) {
+      setCurrentVersion(allVersions[newIndex])
+    }
+  }
+
+  const handleModificationComplete = async () => {
+    // Reload all versions and time blocks
+    await initializePlan()
   }
 
   const generateInitialPlan = async () => {
@@ -77,6 +113,7 @@ export default function TripTimeline({ trip, flights, hotels, travelers, initial
       if (versionError) throw versionError
 
       setCurrentVersion(newVersion)
+      setAllVersions([newVersion])
 
       // Create default time blocks for each day
       const defaultBlocks = days.flatMap(day => {
@@ -238,13 +275,17 @@ export default function TripTimeline({ trip, flights, hotels, travelers, initial
         })}
       </div>
 
-      {showAIChat && (
-        <div className="lg:col-span-1">
-          <div className="sticky top-4">
-            <AIChat tripId={trip.id} />
-          </div>
+      <div className="lg:col-span-1">
+        <div className="sticky top-4">
+          <PlanModifier
+            tripId={trip.id}
+            currentVersionNumber={currentVersion?.version_number || 1}
+            totalVersions={allVersions.length}
+            onVersionChange={handleVersionChange}
+            onModificationComplete={handleModificationComplete}
+          />
         </div>
-      )}
+      </div>
     </div>
   )
 }

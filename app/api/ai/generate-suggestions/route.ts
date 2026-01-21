@@ -6,6 +6,21 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 })
 
+/**
+ * Strips markdown code fences from JSON response if present
+ */
+function stripMarkdownCodeFences(text: string): string {
+  const trimmed = text.trim()
+
+  // Check for ```json ... ``` or ``` ... ```
+  const jsonFenceMatch = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
+  if (jsonFenceMatch) {
+    return jsonFenceMatch[1].trim()
+  }
+
+  return trimmed
+}
+
 export async function POST(request: Request) {
   try {
     const { tripId, destination, travelers } = await request.json()
@@ -94,8 +109,8 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
       throw new Error('Unexpected response type')
     }
 
-    // Parse the AI response
-    const suggestions = JSON.parse(content.text)
+    // Parse the AI response (strip markdown code fences if present)
+    const suggestions = JSON.parse(stripMarkdownCodeFences(content.text))
 
     // Store attractions in database
     const attractionsToInsert = suggestions.attractions.map((a: any) => ({
