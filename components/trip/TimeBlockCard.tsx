@@ -60,7 +60,7 @@ function SuggestionCard({
 
   return (
     <div
-      className={`flex-shrink-0 snap-center bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 ${
+      className={`flex-shrink-0 snap-center bg-white rounded-xl shadow-md overflow-hidden border border-slate-200 ${
         isRestaurant ? 'w-[85vw] max-w-[340px]' : 'w-[85vw] max-w-[340px]'
       }`}
     >
@@ -75,7 +75,7 @@ function SuggestionCard({
           className="w-full h-full object-cover cursor-pointer"
         />
         {isBestMatch && (
-          <span className="absolute top-2 right-2 text-xs bg-green-500 text-white px-2 py-1 rounded-full font-medium shadow">
+          <span className="absolute top-2 right-2 text-xs bg-emerald-500 text-white px-2 py-1 rounded-full font-medium shadow">
             Best match
           </span>
         )}
@@ -84,20 +84,20 @@ function SuggestionCard({
       {/* Content */}
       <div className="p-3">
         <h4
-          className="font-semibold text-base cursor-pointer hover:text-blue-600"
+          className="font-semibold text-base text-slate-800 cursor-pointer hover:text-teal-600"
           onClick={onSelect}
         >
-          {isBestMatch && <span className="text-green-600 mr-1">★</span>}
+          {isBestMatch && <span className="text-emerald-500 mr-1">★</span>}
           {suggestion.name}
         </h4>
-        <p className="text-sm text-gray-600 line-clamp-2 mt-1">
+        <p className="text-sm text-slate-600 line-clamp-2 mt-1">
           {suggestion.description}
         </p>
 
         {/* Collapsible Details */}
         <button
           onClick={() => setDetailsExpanded(!detailsExpanded)}
-          className="text-xs text-blue-600 hover:text-blue-800 mt-2 flex items-center gap-1"
+          className="text-xs text-teal-600 hover:text-teal-700 mt-2 flex items-center gap-1"
         >
           {detailsExpanded ? 'Hide details' : 'Show details'}
           <svg
@@ -111,12 +111,12 @@ function SuggestionCard({
         </button>
 
         {detailsExpanded && (
-          <div className="mt-2 pt-2 border-t border-gray-100 space-y-2">
+          <div className="mt-2 pt-2 border-t border-slate-100 space-y-2">
             {/* Highlights/Tags */}
             {suggestion.highlights.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {suggestion.highlights.map((highlight, i) => (
-                  <span key={i} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                  <span key={i} className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
                     {highlight}
                   </span>
                 ))}
@@ -124,7 +124,7 @@ function SuggestionCard({
             )}
 
             {/* Distance & Travel Time */}
-            <div className="text-xs text-gray-500 space-y-1">
+            <div className="text-xs text-slate-600 space-y-1">
               <p>
                 {formatDistance(suggestion.distance_km)} from {suggestion.origin_name} •{' '}
                 {suggestion.travel_time_text || formatTravelTime(suggestion.travel_time_minutes)}
@@ -146,14 +146,14 @@ function SuggestionCard({
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 underline"
+                className="text-teal-600 hover:text-teal-700 underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 View on Maps
               </a>
               {originLocation && (
                 <>
-                  <span className="text-gray-400">•</span>
+                  <span className="text-slate-400">•</span>
                   <a
                     href={generateMapsDirectionsLink(
                       originLocation,
@@ -161,7 +161,7 @@ function SuggestionCard({
                     )}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 underline"
+                    className="text-teal-600 hover:text-teal-700 underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     Get Directions
@@ -175,7 +175,7 @@ function SuggestionCard({
         {/* Select Button */}
         <button
           onClick={onSelect}
-          className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+          className="mt-3 w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
         >
           Select
         </button>
@@ -429,19 +429,19 @@ export default function TimeBlockCard({
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
+    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
       {/* Block Header */}
-      <div className="bg-gray-50 px-4 py-2 flex justify-between items-center">
+      <div className="bg-slate-50 px-4 py-2 flex justify-between items-center">
         <div>
-          <span className="font-medium text-sm">{getBlockLabel()}</span>
-          <span className="text-xs text-gray-500 ml-2">
+          <span className="font-medium text-sm text-slate-800">{getBlockLabel()}</span>
+          <span className="text-xs text-slate-500 ml-2">
             {formatTime(block.start_time)} - {formatTime(block.end_time)}
           </span>
         </div>
         {selectedItem && (
           <button
             onClick={handleClear}
-            className="text-xs text-red-600 hover:text-red-800"
+            className="text-xs text-rose-600 hover:text-rose-700"
           >
             Clear
           </button>
@@ -450,7 +450,7 @@ export default function TimeBlockCard({
 
       {/* Selected Item Display */}
       {selectedItem && (
-        <div className="p-3 bg-green-50 border-l-4 border-green-500">
+        <div className="p-3 bg-emerald-50 border-l-4 border-emerald-500">
           <div className="flex gap-3">
             <img
               src={selectedItem.image_url || (isRestaurantBlock
@@ -460,10 +460,10 @@ export default function TimeBlockCard({
               className="w-16 h-16 object-cover rounded flex-shrink-0"
             />
             <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-sm">{selectedItem.name}</h4>
-              <p className="text-xs text-gray-600 line-clamp-1">{selectedItem.description}</p>
+              <h4 className="font-semibold text-sm text-slate-800">{selectedItem.name}</h4>
+              <p className="text-xs text-slate-600 line-clamp-1">{selectedItem.description}</p>
               {hotel && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   {formatDistance(
                     calculateDistance(
                       previousSelection?.latitude || hotel.latitude || 0,
@@ -481,7 +481,7 @@ export default function TimeBlockCard({
 
       {/* Horizontal Scrolling Suggestions */}
       {suggestions.length > 0 ? (
-        <div className="p-3 bg-gray-50">
+        <div className="p-3 bg-slate-50">
           <div
             className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-3 px-3"
             style={{ scrollbarWidth: 'thin' }}
@@ -501,14 +501,14 @@ export default function TimeBlockCard({
           {/* Scroll indicator */}
           <div className="flex justify-center mt-2 gap-1">
             {suggestions.length > 1 && (
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-slate-500">
                 Scroll to see {suggestions.length} suggestions
               </p>
             )}
           </div>
         </div>
       ) : (
-        <div className="p-4 text-center text-sm text-gray-500">
+        <div className="p-4 text-center text-sm text-slate-600">
           No suggestions available
         </div>
       )}
