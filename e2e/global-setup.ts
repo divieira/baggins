@@ -12,6 +12,7 @@ async function globalSetup(config: FullConfig) {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error('❌ Missing Supabase credentials in .env.test');
@@ -28,39 +29,98 @@ async function globalSetup(config: FullConfig) {
   console.log('✅ Supabase credentials found');
   console.log(`📧 Test user email: ${TEST_EMAIL}`);
 
-  try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
+  // Use service role key to create a confirmed user
+  if (serviceRoleKey) {
+    try {
+      const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      });
 
-    // Try to sign up test user
-    const { error: signupError } = await supabase.auth.signUp({
-      email: TEST_EMAIL,
-      password: TEST_PASSWORD,
-    });
+      // Check if user already exists by trying to get user by email
+      const { data: existingUsers } = await adminClient.auth.admin.listUsers();
+      const existingUser = existingUsers?.users?.find(u => u.email === TEST_EMAIL);
 
-    if (signupError) {
-      if (signupError.message.includes('already registered')) {
+      if (existingUser) {
         console.log('✅ Test user already exists');
+
+        // Verify user is confirmed
+        if (!existingUser.email_confirmed_at) {
+          // Confirm the user
+          await adminClient.auth.admin.updateUserById(existingUser.id, {
+            email_confirm: true
+          });
+          console.log('✅ Test user email confirmed');
+        }
       } else {
-        console.log(`⚠️ Signup: ${signupError.message}`);
+        // Create new user with email confirmed
+        const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
+          email: TEST_EMAIL,
+          password: TEST_PASSWORD,
+          email_confirm: true
+        });
+
+        if (createError) {
+          console.log(`⚠️ Failed to create test user: ${createError.message}`);
+        } else {
+          console.log('✅ Test user created and confirmed');
+        }
       }
-    } else {
-      console.log('✅ Test user created');
-    }
 
-    // Verify authentication
-    const { error: loginError } = await supabase.auth.signInWithPassword({
-      email: TEST_EMAIL,
-      password: TEST_PASSWORD,
-    });
+      // Verify we can log in with the test user
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: TEST_EMAIL,
+        password: TEST_PASSWORD,
+      });
 
-    if (loginError) {
-      console.log(`⚠️ Login verification: ${loginError.message}`);
-    } else {
-      console.log('✅ Test user authentication verified');
-      await supabase.auth.signOut();
+      if (loginError) {
+        console.log(`⚠️ Login verification: ${loginError.message}`);
+      } else {
+        console.log('✅ Test user authentication verified');
+        await supabase.auth.signOut();
+      }
+    } catch (e) {
+      console.log(`⚠️ Admin setup error: ${e instanceof Error ? e.message : 'Unknown'}`);
     }
-  } catch (e) {
-    console.log(`⚠️ Setup error: ${e instanceof Error ? e.message : 'Unknown'}`);
+  } else {
+    // Fallback to regular signup if no service role key
+    try {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      // Try to sign up test user
+      const { error: signupError } = await supabase.auth.signUp({
+        email: TEST_EMAIL,
+        password: TEST_PASSWORD,
+      });
+
+      if (signupError) {
+        if (signupError.message.includes('already registered')) {
+          console.log('✅ Test user already exists');
+        } else {
+          console.log(`⚠️ Signup: ${signupError.message}`);
+        }
+      } else {
+        console.log('✅ Test user created (email confirmation may be required)');
+      }
+
+      // Verify authentication
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: TEST_EMAIL,
+        password: TEST_PASSWORD,
+      });
+
+      if (loginError) {
+        console.log(`⚠️ Login verification: ${loginError.message}`);
+      } else {
+        console.log('✅ Test user authentication verified');
+        await supabase.auth.signOut();
+      }
+    } catch (e) {
+      console.log(`⚠️ Setup error: ${e instanceof Error ? e.message : 'Unknown'}`);
+    }
   }
 
   console.log('✅ Global setup complete');

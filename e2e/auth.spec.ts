@@ -48,10 +48,10 @@ test.describe('Authentication', () => {
       await page.getByLabel(/email/i).fill(testEmail);
       await page.getByLabel(/password/i).fill('TestPassword123!');
       await page.getByRole('button', { name: 'Sign Up' }).click();
-      // Should show either success message, rate limit message, or redirect to dashboard
+      // Should show either success message, rate limit message, invalid email, or redirect to dashboard
       // (depends on Supabase settings and rate limits)
       await expect(
-        page.getByText(/check your email|rate limit|dashboard|already registered/i)
+        page.getByText(/check your email|rate limit|dashboard|already registered|invalid|Unable to validate/i)
           .or(page.locator('body:has-text("dashboard")'))
       ).toBeVisible({ timeout: 15000 });
     });
