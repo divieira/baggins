@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     const numDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
 
     // Build time blocks structure for AI
-    const timeBlocksTemplate = []
+    const timeBlocksTemplate: { date: string; blockType: string; startTime: string; endTime: string }[] = []
     for (let day = 0; day < numDays; day++) {
       const date = new Date(startDate)
       date.setDate(date.getDate() + day)
