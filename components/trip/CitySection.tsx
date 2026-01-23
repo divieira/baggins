@@ -17,10 +17,6 @@ interface SuggestionWithSelection extends Attraction {
   selected: boolean
 }
 
-interface RestaurantWithSelection extends Restaurant {
-  selected: boolean
-}
-
 export default function CitySection({
   city,
   tripId,
@@ -30,12 +26,27 @@ export default function CitySection({
   isGenerating
 }: Props) {
   const [attractions, setAttractions] = useState<SuggestionWithSelection[]>([])
-  const [restaurants, setRestaurants] = useState<RestaurantWithSelection[]>([])
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([])
   const [hotel, setHotel] = useState<Hotel | null>(null)
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [expanded, setExpanded] = useState(true)
   const supabase = createClient()
+
+  // Load persisted selections from localStorage
+  const getPersistedSelections = (): string[] => {
+    if (typeof window === 'undefined') return []
+    const key = `city-selections-${city.id}`
+    const stored = localStorage.getItem(key)
+    return stored ? JSON.parse(stored) : []
+  }
+
+  // Save selections to localStorage
+  const persistSelections = (selectedIds: string[]) => {
+    if (typeof window === 'undefined') return
+    const key = `city-selections-${city.id}`
+    localStorage.setItem(key, JSON.stringify(selectedIds))
+  }
 
   useEffect(() => {
     loadCityData()
@@ -54,11 +65,22 @@ export default function CitySection({
         supabase.from('hotels').select('*').eq('city_id', city.id).single()
       ])
 
+      // Get persisted selections
+      const persistedSelections = getPersistedSelections()
+
       if (attractionsData) {
-        setAttractions(attractionsData.map(a => ({ ...a, selected: false })))
+        setAttractions(attractionsData.map(a => ({
+          ...a,
+          selected: persistedSelections.includes(a.id)
+        })))
+
+        // Notify parent of initial selections
+        if (persistedSelections.length > 0) {
+          onSelectionsChange(city.id, persistedSelections, [])
+        }
       }
       if (restaurantsData) {
-        setRestaurants(restaurantsData.map(r => ({ ...r, selected: false })))
+        setRestaurants(restaurantsData)
       }
       if (hotelData) {
         setHotel(hotelData)
@@ -90,7 +112,7 @@ export default function CitySection({
 
       const data = await response.json()
       setAttractions(data.attractions.map((a: Attraction) => ({ ...a, selected: false })))
-      setRestaurants(data.restaurants.map((r: Restaurant) => ({ ...r, selected: false })))
+      setRestaurants(data.restaurants)
     } catch (error) {
       console.error('Error generating suggestions:', error)
     } finally {
@@ -105,23 +127,15 @@ export default function CitySection({
     setAttractions(updated)
 
     const selectedAttractionIds = updated.filter(a => a.selected).map(a => a.id)
-    const selectedRestaurantIds = restaurants.filter(r => r.selected).map(r => r.id)
-    onSelectionsChange(city.id, selectedAttractionIds, selectedRestaurantIds)
-  }
 
-  const toggleRestaurantSelection = (id: string) => {
-    const updated = restaurants.map(r =>
-      r.id === id ? { ...r, selected: !r.selected } : r
-    )
-    setRestaurants(updated)
+    // Persist selections
+    persistSelections(selectedAttractionIds)
 
-    const selectedAttractionIds = attractions.filter(a => a.selected).map(a => a.id)
-    const selectedRestaurantIds = updated.filter(r => r.selected).map(r => r.id)
-    onSelectionsChange(city.id, selectedAttractionIds, selectedRestaurantIds)
+    // Notify parent (restaurants will be auto-selected by AI during itinerary generation)
+    onSelectionsChange(city.id, selectedAttractionIds, [])
   }
 
   const selectedAttractionCount = attractions.filter(a => a.selected).length
-  const selectedRestaurantCount = restaurants.filter(r => r.selected).length
 
   const getMapsUrl = (lat: number, lon: number, name: string) => {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}&query=${lat},${lon}`
@@ -146,10 +160,11 @@ export default function CitySection({
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-sm">
-              <span className="bg-indigo-500 px-2 py-1 rounded">{selectedAttractionCount} attractions</span>
-              <span className="bg-purple-500 px-2 py-1 rounded ml-2">{selectedRestaurantCount} restaurants</span>
-            </div>
+            {selectedAttractionCount > 0 && (
+              <span className="bg-indigo-500 px-3 py-1 rounded-full text-sm font-medium">
+                {selectedAttractionCount} selected
+              </span>
+            )}
             <span className="text-2xl">{expanded ? '▼' : '▶'}</span>
           </div>
         </div>
@@ -182,182 +197,100 @@ export default function CitySection({
 
           {/* Loading/Generate State */}
           {loading ? (
-            <div className="text-center py-8 text-gray-500">Loading suggestions...</div>
-          ) : attractions.length === 0 && restaurants.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Loading attractions...</div>
+          ) : attractions.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-600 mb-4">No suggestions yet for {city.name}</p>
+              <p className="text-gray-600 mb-4">No attractions yet for {city.name}</p>
               <button
                 onClick={generateSuggestions}
                 disabled={generating}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium"
               >
                 {generating ? 'Generating...' : 'Generate AI Suggestions'}
               </button>
             </div>
           ) : (
             <>
-              {/* Attractions Section */}
+              {/* Attractions Grid */}
               <div className="mb-6">
                 <h3 className="text-lg font-semibold mb-3 flex items-center">
                   <span className="mr-2">🎯</span>
-                  Attractions
-                  <span className="ml-2 text-sm font-normal text-gray-500">
-                    (Select the ones you want to visit)
-                  </span>
+                  Select Attractions to Visit
                 </h3>
-                <div className="grid gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {attractions.map(attraction => (
                     <div
                       key={attraction.id}
-                      className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                      className={`border rounded-lg overflow-hidden cursor-pointer transition-all ${
                         attraction.selected
-                          ? 'border-indigo-500 bg-indigo-50'
+                          ? 'border-indigo-500 ring-2 ring-indigo-200'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                       onClick={() => toggleAttractionSelection(attraction.id)}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
-                          attraction.selected ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-gray-300'
+                      {/* Image */}
+                      <div className="relative h-40 bg-gray-100">
+                        <img
+                          src={attraction.image_url || `https://source.unsplash.com/400x300/?${encodeURIComponent(attraction.name)}`}
+                          alt={attraction.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400&h=300&fit=crop'
+                          }}
+                        />
+                        {/* Selection checkbox overlay */}
+                        <div className={`absolute top-2 right-2 w-8 h-8 rounded-full border-2 flex items-center justify-center ${
+                          attraction.selected
+                            ? 'border-indigo-500 bg-indigo-500 text-white'
+                            : 'border-white bg-white/80 text-gray-400'
                         }`}>
-                          {attraction.selected && '✓'}
+                          {attraction.selected ? '✓' : ''}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <h4 className="font-medium">{attraction.name}</h4>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {attraction.is_kid_friendly && (
-                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                                  Kid-friendly
-                                </span>
-                              )}
-                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                                {attraction.category}
-                              </span>
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1">{attraction.description}</p>
-                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                            {attraction.opening_time && attraction.closing_time && (
-                              <span>🕐 {attraction.opening_time} - {attraction.closing_time}</span>
-                            )}
-                            {attraction.duration_minutes && (
-                              <span>⏱️ {attraction.duration_minutes} min</span>
-                            )}
-                            <a
-                              href={getMapsUrl(attraction.latitude, attraction.longitude, attraction.name)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800"
-                              onClick={e => e.stopPropagation()}
-                            >
-                              📍 Map
-                            </a>
-                            {hotel && hotel.latitude && hotel.longitude && (
-                              <a
-                                href={getDirectionsUrl(hotel.latitude, hotel.longitude, attraction.latitude, attraction.longitude)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800"
-                                onClick={e => e.stopPropagation()}
-                              >
-                                🚶 Directions
-                              </a>
-                            )}
-                          </div>
-                          {attraction.highlights && attraction.highlights.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {attraction.highlights.slice(0, 3).map((h, i) => (
-                                <span key={i} className="text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded">
-                                  {h}
-                                </span>
-                              ))}
-                            </div>
+                        {/* Category badge */}
+                        <span className="absolute bottom-2 left-2 text-xs bg-black/60 text-white px-2 py-1 rounded">
+                          {attraction.category}
+                        </span>
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-semibold text-gray-900">{attraction.name}</h4>
+                          {attraction.is_kid_friendly && (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded flex-shrink-0">
+                              Kid-friendly
+                            </span>
                           )}
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Restaurants Section */}
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold mb-3 flex items-center">
-                  <span className="mr-2">🍽️</span>
-                  Restaurants
-                  <span className="ml-2 text-sm font-normal text-gray-500">
-                    (Select for lunch and dinner)
-                  </span>
-                </h3>
-                <div className="grid gap-3">
-                  {restaurants.map(restaurant => (
-                    <div
-                      key={restaurant.id}
-                      className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                        restaurant.selected
-                          ? 'border-purple-500 bg-purple-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => toggleRestaurantSelection(restaurant.id)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
-                          restaurant.selected ? 'border-purple-500 bg-purple-500 text-white' : 'border-gray-300'
-                        }`}>
-                          {restaurant.selected && '✓'}
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{attraction.description}</p>
+                        <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                          {attraction.opening_time && attraction.closing_time && (
+                            <span>🕐 {attraction.opening_time} - {attraction.closing_time}</span>
+                          )}
+                          {attraction.duration_minutes && (
+                            <span>⏱️ {attraction.duration_minutes} min</span>
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <h4 className="font-medium">{restaurant.name}</h4>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {restaurant.is_kid_friendly && (
-                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                                  Kid-friendly
-                                </span>
-                              )}
-                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                                {restaurant.cuisine_type}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {'$'.repeat(restaurant.price_level || 2)}
-                              </span>
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1">{restaurant.description}</p>
-                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                            {restaurant.opening_time && restaurant.closing_time && (
-                              <span>🕐 {restaurant.opening_time} - {restaurant.closing_time}</span>
-                            )}
+                        <div className="flex items-center gap-2 mt-2">
+                          <a
+                            href={getMapsUrl(attraction.latitude, attraction.longitude, attraction.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            📍 Map
+                          </a>
+                          {hotel && hotel.latitude && hotel.longitude && (
                             <a
-                              href={getMapsUrl(restaurant.latitude, restaurant.longitude, restaurant.name)}
+                              href={getDirectionsUrl(hotel.latitude, hotel.longitude, attraction.latitude, attraction.longitude)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800"
+                              className="text-xs text-blue-600 hover:text-blue-800"
                               onClick={e => e.stopPropagation()}
                             >
-                              📍 Map
+                              🚶 Directions
                             </a>
-                            {hotel && hotel.latitude && hotel.longitude && (
-                              <a
-                                href={getDirectionsUrl(hotel.latitude, hotel.longitude, restaurant.latitude, restaurant.longitude)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800"
-                                onClick={e => e.stopPropagation()}
-                              >
-                                🚶 Directions
-                              </a>
-                            )}
-                          </div>
-                          {restaurant.highlights && restaurant.highlights.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {restaurant.highlights.slice(0, 3).map((h, i) => (
-                                <span key={i} className="text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded">
-                                  {h}
-                                </span>
-                              ))}
-                            </div>
                           )}
                         </div>
                       </div>
@@ -367,20 +300,36 @@ export default function CitySection({
               </div>
 
               {/* Generate Itinerary Button */}
-              {(selectedAttractionCount > 0 || selectedRestaurantCount > 0) && (
-                <div className="border-t pt-4">
-                  <button
-                    onClick={() => onGenerateItinerary(city.id)}
-                    disabled={isGenerating}
-                    className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 font-medium"
-                  >
-                    {isGenerating ? 'Generating Itinerary...' : `Generate Itinerary for ${city.name}`}
-                  </button>
+              <div className="sticky bottom-4 pt-4 bg-gradient-to-t from-white via-white to-transparent">
+                <button
+                  onClick={() => onGenerateItinerary(city.id)}
+                  disabled={isGenerating || selectedAttractionCount === 0}
+                  className={`w-full py-4 rounded-lg font-semibold text-lg transition-all ${
+                    selectedAttractionCount > 0
+                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  } disabled:opacity-50`}
+                >
+                  {isGenerating ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Generating Itinerary...
+                    </span>
+                  ) : selectedAttractionCount > 0 ? (
+                    `Generate Itinerary with ${selectedAttractionCount} Attraction${selectedAttractionCount > 1 ? 's' : ''}`
+                  ) : (
+                    'Select Attractions to Generate Itinerary'
+                  )}
+                </button>
+                {selectedAttractionCount > 0 && (
                   <p className="text-xs text-gray-500 text-center mt-2">
-                    AI will create an optimal schedule based on your selections
+                    AI will create an optimal schedule and select restaurants for you
                   </p>
-                </div>
-              )}
+                )}
+              </div>
             </>
           )}
         </div>

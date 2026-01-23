@@ -90,8 +90,8 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
         body: JSON.stringify({
           tripId: trip.id,
           cityId,
-          selectedAttractionIds: citySelections.attractionIds,
-          selectedRestaurantIds: citySelections.restaurantIds
+          selectedAttractionIds: citySelections.attractionIds
+          // Restaurant selection is automatic - AI picks best restaurants
         })
       })
 

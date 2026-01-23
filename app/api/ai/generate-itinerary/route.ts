@@ -40,14 +40,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Trip or city not found' }, { status: 404 })
     }
 
-    // Get selected attractions and restaurants
+    // Get selected attractions and ALL restaurants for the city
+    // (AI will choose appropriate restaurants for lunch/dinner)
     const [{ data: attractions }, { data: restaurants }] = await Promise.all([
       supabase.from('attractions')
         .select('*')
         .in('id', selectedAttractionIds || []),
       supabase.from('restaurants')
         .select('*')
-        .in('id', selectedRestaurantIds || [])
+        .eq('city_id', cityId)
     ])
 
     // Calculate number of days
@@ -107,7 +108,7 @@ ${JSON.stringify(attractions?.map(a => ({
   category: a.category
 })) || [], null, 2)}
 
-Selected Restaurants (for lunch, dinner blocks):
+Available Restaurants (choose appropriate ones for lunch, dinner blocks):
 ${JSON.stringify(restaurants?.map(r => ({
   id: r.id,
   name: r.name,
@@ -115,7 +116,8 @@ ${JSON.stringify(restaurants?.map(r => ({
   longitude: r.longitude,
   opening_time: r.opening_time,
   closing_time: r.closing_time,
-  cuisine_type: r.cuisine_type
+  cuisine_type: r.cuisine_type,
+  price_level: r.price_level
 })) || [], null, 2)}
 
 Create an optimal schedule considering:
@@ -124,7 +126,10 @@ Create an optimal schedule considering:
 3. Appropriate meal times (restaurants for lunch around 12:00-13:30, dinner around 18:00-20:00)
 4. Duration of activities
 5. Spread activities across days evenly
-6. Each attraction/restaurant should only be assigned to ONE time block
+6. Each attraction should only be assigned to ONE time block
+7. Select restaurants that are close to the preceding/following attractions
+8. Provide variety in cuisine types across different meals
+9. Consider price levels for a good mix
 
 Return ONLY a valid JSON object with this exact structure (no markdown, no code blocks):
 {
