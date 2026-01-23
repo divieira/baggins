@@ -69,6 +69,20 @@ async function globalSetup(config: FullConfig) {
         }
       }
 
+      // Ensure user exists in public.users table (required for trips foreign key)
+      const userId = existingUser?.id || (await adminClient.auth.admin.listUsers()).data.users?.find(u => u.email === TEST_EMAIL)?.id;
+      if (userId) {
+        const { error: upsertError } = await adminClient
+          .from('users')
+          .upsert({ id: userId, email: TEST_EMAIL });
+
+        if (upsertError) {
+          console.log(`⚠️ Failed to ensure public.users record: ${upsertError.message}`);
+        } else {
+          console.log('✅ Public users record ensured');
+        }
+      }
+
       // Verify we can log in with the test user
       const supabase = createClient(supabaseUrl, supabaseKey);
       const { error: loginError } = await supabase.auth.signInWithPassword({

@@ -32,8 +32,14 @@ ALTER TABLE trip_cities ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view trip cities" ON trip_cities
   FOR SELECT USING (has_trip_access(trip_id));
 
-CREATE POLICY "Users can manage trip cities" ON trip_cities
-  FOR ALL USING (has_trip_access(trip_id));
+CREATE POLICY "Users can insert trip cities" ON trip_cities
+  FOR INSERT WITH CHECK (has_trip_access(trip_id));
+
+CREATE POLICY "Users can update trip cities" ON trip_cities
+  FOR UPDATE USING (has_trip_access(trip_id));
+
+CREATE POLICY "Users can delete trip cities" ON trip_cities
+  FOR DELETE USING (has_trip_access(trip_id));
 
 -- Indexes for performance
 CREATE INDEX idx_trip_cities_trip_id ON trip_cities(trip_id);

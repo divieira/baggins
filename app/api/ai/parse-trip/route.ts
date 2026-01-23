@@ -233,6 +233,19 @@ For single-city trips, still include the "cities" array with one entry.`,
 
     if (citiesError) {
       console.error('Error inserting cities:', citiesError)
+      // Don't fail silently - return error to help diagnose issues
+      return NextResponse.json(
+        { error: `Failed to create trip cities: ${citiesError.message}`, details: citiesError },
+        { status: 500 }
+      )
+    }
+
+    if (!insertedCities || insertedCities.length === 0) {
+      console.error('No cities were inserted despite no error')
+      return NextResponse.json(
+        { error: 'Failed to create trip cities: No cities returned after insert' },
+        { status: 500 }
+      )
     }
 
     // Create hotels linked to cities

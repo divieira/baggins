@@ -39,7 +39,7 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
 
   // Fetch all trip data including cities
   const [
-    { data: cities },
+    { data: cities, error: citiesError },
     { data: travelers },
     { data: flights },
     { data: hotels },
@@ -58,11 +58,15 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
       .single()
   ])
 
+  if (citiesError) {
+    console.error('Error fetching cities:', citiesError)
+  }
+
   // If no cities exist, create one from the trip destination (for backwards compatibility)
   let finalCities = cities || []
   if (finalCities.length === 0) {
     // Create a default city from the trip destination
-    const { data: newCity } = await supabase
+    const { data: newCity, error: insertError } = await supabase
       .from('trip_cities')
       .insert({
         trip_id: id,
@@ -73,6 +77,10 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
       })
       .select()
       .single()
+
+    if (insertError) {
+      console.error('Error creating default city:', insertError)
+    }
 
     if (newCity) {
       finalCities = [newCity]
