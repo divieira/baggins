@@ -28,6 +28,33 @@ export type TimeBlockUpdate = Database['public']['Tables']['time_blocks']['Updat
 
 export type BlockType = 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'evening'
 
+// Multi-city support types
+export interface TripCity {
+  id: string
+  trip_id: string
+  name: string
+  start_date: string
+  end_date: string
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
+export interface TripCityInsert {
+  trip_id: string
+  name: string
+  start_date: string
+  end_date: string
+  order_index?: number
+}
+
+export interface CityWithDetails extends TripCity {
+  hotel: Hotel | null
+  attractions: Attraction[]
+  restaurants: Restaurant[]
+  selectedAttractions: string[] // IDs of selected attractions for this city
+}
+
 export interface TimeBlockWithDetails extends TimeBlock {
   attraction?: Attraction | null
   restaurant?: Restaurant | null
@@ -60,6 +87,12 @@ export interface TripWithDetails extends Trip {
   travelers: Traveler[]
   flights: Flight[]
   hotels: Hotel[]
+  cities: CityWithDetails[]
   currentVersion?: PlanVersion
   dayPlans?: DayPlan[]
+}
+
+// Extended DayPlan with city info
+export interface DayPlanWithCity extends DayPlan {
+  city: TripCity | null
 }
