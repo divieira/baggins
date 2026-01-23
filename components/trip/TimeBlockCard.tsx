@@ -36,6 +36,154 @@ interface SuggestionWithDistance {
   price_level?: number
 }
 
+function SuggestionCard({
+  suggestion,
+  isBestMatch,
+  isRestaurant,
+  originLocation,
+  loadingTravelTimes,
+  onSelect
+}: {
+  suggestion: SuggestionWithDistance
+  isBestMatch: boolean
+  isRestaurant: boolean
+  originLocation: Location | null
+  loadingTravelTimes: boolean
+  onSelect: () => void
+}) {
+  const [detailsExpanded, setDetailsExpanded] = useState(false)
+
+  // Placeholder image when no image is available
+  const placeholderImage = isRestaurant
+    ? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&h=300&fit=crop'
+    : 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400&h=300&fit=crop'
+
+  return (
+    <div
+      className={`flex-shrink-0 snap-center bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 ${
+        isRestaurant ? 'w-[85vw] max-w-[340px]' : 'w-[85vw] max-w-[340px]'
+      }`}
+    >
+      {/* Photo */}
+      <div
+        className={`relative w-full ${isRestaurant ? 'h-32' : 'h-48'}`}
+        onClick={onSelect}
+      >
+        <img
+          src={suggestion.image_url || placeholderImage}
+          alt={suggestion.name}
+          className="w-full h-full object-cover cursor-pointer"
+        />
+        {isBestMatch && (
+          <span className="absolute top-2 right-2 text-xs bg-green-500 text-white px-2 py-1 rounded-full font-medium shadow">
+            Best match
+          </span>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="p-3">
+        <h4
+          className="font-semibold text-base cursor-pointer hover:text-blue-600"
+          onClick={onSelect}
+        >
+          {isBestMatch && <span className="text-green-600 mr-1">★</span>}
+          {suggestion.name}
+        </h4>
+        <p className="text-sm text-gray-600 line-clamp-2 mt-1">
+          {suggestion.description}
+        </p>
+
+        {/* Collapsible Details */}
+        <button
+          onClick={() => setDetailsExpanded(!detailsExpanded)}
+          className="text-xs text-blue-600 hover:text-blue-800 mt-2 flex items-center gap-1"
+        >
+          {detailsExpanded ? 'Hide details' : 'Show details'}
+          <svg
+            className={`w-3 h-3 transition-transform ${detailsExpanded ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {detailsExpanded && (
+          <div className="mt-2 pt-2 border-t border-gray-100 space-y-2">
+            {/* Highlights/Tags */}
+            {suggestion.highlights.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {suggestion.highlights.map((highlight, i) => (
+                  <span key={i} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                    {highlight}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Distance & Travel Time */}
+            <div className="text-xs text-gray-500 space-y-1">
+              <p>
+                {formatDistance(suggestion.distance_km)} from {suggestion.origin_name} •{' '}
+                {suggestion.travel_time_text || formatTravelTime(suggestion.travel_time_minutes)}
+                {loadingTravelTimes && !suggestion.travel_time_text && ' (updating...)'}
+              </p>
+              {suggestion.opening_time && suggestion.closing_time && (
+                <p>
+                  Open {formatTime(suggestion.opening_time)} - {formatTime(suggestion.closing_time)}
+                </p>
+              )}
+            </div>
+
+            {/* Map Links */}
+            <div className="flex gap-2 text-xs">
+              <a
+                href={generateMapsSearchLink(
+                  { latitude: suggestion.latitude, longitude: suggestion.longitude },
+                  suggestion.name
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                View on Maps
+              </a>
+              {originLocation && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <a
+                    href={generateMapsDirectionsLink(
+                      originLocation,
+                      { latitude: suggestion.latitude, longitude: suggestion.longitude }
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Get Directions
+                  </a>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Select Button */}
+        <button
+          onClick={onSelect}
+          className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+        >
+          Select
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function TimeBlockCard({
   block,
   availableAttractions,
@@ -44,12 +192,13 @@ export default function TimeBlockCard({
   previousBlock,
   onUpdate
 }: Props) {
-  const [expanded, setExpanded] = useState(false)
   const [selectedItem, setSelectedItem] = useState<Attraction | Restaurant | null>(null)
   const [previousSelection, setPreviousSelection] = useState<Attraction | Restaurant | null>(null)
   const [suggestions, setSuggestions] = useState<SuggestionWithDistance[]>([])
   const [loadingTravelTimes, setLoadingTravelTimes] = useState(false)
   const supabase = createClient()
+
+  const isRestaurantBlock = block.block_type === 'lunch' || block.block_type === 'dinner'
 
   useEffect(() => {
     loadSelectedItem()
@@ -180,9 +329,9 @@ export default function TimeBlockCard({
 
     setSuggestions(suggestions)
 
-    // Fetch real travel times for top 5 suggestions if Google Maps API is configured
+    // Fetch real travel times for top 10 suggestions if Google Maps API is configured
     if (suggestions.length > 0) {
-      fetchRealTravelTimes(suggestions.slice(0, 5), originLocation)
+      fetchRealTravelTimes(suggestions.slice(0, 10), originLocation)
     }
   }
 
@@ -241,7 +390,6 @@ export default function TimeBlockCard({
     }
 
     await onUpdate(block.id, updates)
-    setExpanded(false)
   }
 
   const handleClear = async () => {
@@ -300,184 +448,68 @@ export default function TimeBlockCard({
         )}
       </div>
 
-      {/* Selected Item or Suggestions */}
-      {selectedItem ? (
-        <div className="p-4 bg-green-50 border-l-4 border-green-500">
+      {/* Selected Item Display */}
+      {selectedItem && (
+        <div className="p-3 bg-green-50 border-l-4 border-green-500">
           <div className="flex gap-3">
-            {selectedItem.image_url && (
-              <img
-                src={selectedItem.image_url}
-                alt={selectedItem.name}
-                className="w-20 h-20 object-cover rounded"
-              />
-            )}
-            <div className="flex-1">
+            <img
+              src={selectedItem.image_url || (isRestaurantBlock
+                ? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=80&h=80&fit=crop'
+                : 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=80&h=80&fit=crop')}
+              alt={selectedItem.name}
+              className="w-16 h-16 object-cover rounded flex-shrink-0"
+            />
+            <div className="flex-1 min-w-0">
               <h4 className="font-semibold text-sm">{selectedItem.name}</h4>
-              <p className="text-xs text-gray-600 line-clamp-2">{selectedItem.description}</p>
+              <p className="text-xs text-gray-600 line-clamp-1">{selectedItem.description}</p>
               {hotel && (
-                <div className="space-y-1 mt-2">
-                  <p className="text-xs text-gray-500">
-                    {formatDistance(
-                      calculateDistance(
-                        previousSelection?.latitude || hotel.latitude || 0,
-                        previousSelection?.longitude || hotel.longitude || 0,
-                        selectedItem.latitude,
-                        selectedItem.longitude
-                      )
-                    )} from {previousSelection?.name || hotel.name} • {formatTravelTime(
-                      estimateTravelTime(
-                        calculateDistance(
-                          previousSelection?.latitude || hotel.latitude || 0,
-                          previousSelection?.longitude || hotel.longitude || 0,
-                          selectedItem.latitude,
-                          selectedItem.longitude
-                        )
-                      )
-                    )}
-                  </p>
-                  <div className="flex gap-2 text-xs">
-                    <a
-                      href={generateMapsSearchLink(
-                        { latitude: selectedItem.latitude, longitude: selectedItem.longitude },
-                        selectedItem.name
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 underline"
-                    >
-                      View on Maps
-                    </a>
-                    {getOriginLocation() && (
-                      <>
-                        <span className="text-gray-400">•</span>
-                        <a
-                          href={generateMapsDirectionsLink(
-                            getOriginLocation()!,
-                            { latitude: selectedItem.latitude, longitude: selectedItem.longitude }
-                          )}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 underline"
-                        >
-                          Get Directions
-                        </a>
-                      </>
-                    )}
-                  </div>
-                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formatDistance(
+                    calculateDistance(
+                      previousSelection?.latitude || hotel.latitude || 0,
+                      previousSelection?.longitude || hotel.longitude || 0,
+                      selectedItem.latitude,
+                      selectedItem.longitude
+                    )
+                  )} from {previousSelection?.name || hotel.name}
+                </p>
               )}
             </div>
           </div>
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="mt-2 text-xs text-blue-600 hover:text-blue-800"
-          >
-            {expanded ? 'Show less' : 'Change selection'}
-          </button>
-        </div>
-      ) : (
-        <div className="p-4">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-sm text-blue-600 hover:text-blue-800"
-          >
-            {suggestions.length > 0 ? `View ${suggestions.length} suggestions` : 'No suggestions yet'}
-          </button>
         </div>
       )}
 
-      {/* Expanded Suggestions */}
-      {expanded && suggestions.length > 0 && (
-        <div className="border-t border-gray-200 bg-white max-h-96 overflow-y-auto">
-          {suggestions.slice(0, 5).map((suggestion, index) => (
-            <div
-              key={suggestion.id}
-              className="p-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 cursor-pointer"
-              onClick={() => handleSelect(suggestion)}
-            >
-              <div className="flex gap-3">
-                {suggestion.image_url && (
-                  <img
-                    src={suggestion.image_url}
-                    alt={suggestion.name}
-                    className="w-20 h-20 object-cover rounded flex-shrink-0"
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <h4 className="font-semibold text-sm">
-                      {index === 0 && <span className="text-green-600 mr-1">★</span>}
-                      {suggestion.name}
-                    </h4>
-                    {index === 0 && (
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded flex-shrink-0">
-                        Best match
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-600 line-clamp-2 mt-1">
-                    {suggestion.description}
-                  </p>
-                  {suggestion.highlights.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {suggestion.highlights.slice(0, 3).map((highlight, i) => (
-                        <span key={i} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                          {highlight}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                    <span>{formatDistance(suggestion.distance_km)} from {suggestion.origin_name}</span>
-                    <span>•</span>
-                    <span>
-                      {suggestion.travel_time_text || formatTravelTime(suggestion.travel_time_minutes)}
-                      {loadingTravelTimes && index < 5 && !suggestion.travel_time_text && ' (updating...)'}
-                    </span>
-                    {suggestion.opening_time && suggestion.closing_time && (
-                      <>
-                        <span>•</span>
-                        <span>
-                          Open {formatTime(suggestion.opening_time)} - {formatTime(suggestion.closing_time)}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex gap-2 text-xs mt-2">
-                    <a
-                      href={generateMapsSearchLink(
-                        { latitude: suggestion.latitude, longitude: suggestion.longitude },
-                        suggestion.name
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View on Maps
-                    </a>
-                    {getOriginLocation() && (
-                      <>
-                        <span className="text-gray-400">•</span>
-                        <a
-                          href={generateMapsDirectionsLink(
-                            getOriginLocation()!,
-                            { latitude: suggestion.latitude, longitude: suggestion.longitude }
-                          )}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Get Directions
-                        </a>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+      {/* Horizontal Scrolling Suggestions */}
+      {suggestions.length > 0 ? (
+        <div className="p-3 bg-gray-50">
+          <div
+            className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-3 px-3"
+            style={{ scrollbarWidth: 'thin' }}
+          >
+            {suggestions.map((suggestion, index) => (
+              <SuggestionCard
+                key={suggestion.id}
+                suggestion={suggestion}
+                isBestMatch={index === 0}
+                isRestaurant={isRestaurantBlock}
+                originLocation={getOriginLocation()}
+                loadingTravelTimes={loadingTravelTimes && index < 5}
+                onSelect={() => handleSelect(suggestion)}
+              />
+            ))}
+          </div>
+          {/* Scroll indicator */}
+          <div className="flex justify-center mt-2 gap-1">
+            {suggestions.length > 1 && (
+              <p className="text-xs text-gray-400">
+                Scroll to see {suggestions.length} suggestions
+              </p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="p-4 text-center text-sm text-gray-500">
+          No suggestions available
         </div>
       )}
     </div>
