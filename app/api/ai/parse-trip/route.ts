@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { generateCitySuggestions } from '@/lib/ai/generate-suggestions'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -340,12 +341,41 @@ For single-city trips, still include the "cities" array with one entry.`,
       supabase.from('hotels').select('*').eq('trip_id', trip.id)
     ])
 
+    // Auto-generate suggestions for each city
+    const allAttractions: any[] = []
+    const allRestaurants: any[] = []
+
+    if (cities && cities.length > 0) {
+      console.log(`Generating suggestions for ${cities.length} cities...`)
+
+      for (const city of cities) {
+        try {
+          console.log(`  Generating suggestions for ${city.name}...`)
+          const { attractions, restaurants } = await generateCitySuggestions({
+            supabase,
+            tripId: trip.id,
+            cityId: city.id,
+            cityName: city.name,
+            travelers: travelers || []
+          })
+          allAttractions.push(...attractions)
+          allRestaurants.push(...restaurants)
+          console.log(`  ✓ Generated ${attractions.length} attractions and ${restaurants.length} restaurants for ${city.name}`)
+        } catch (error) {
+          console.error(`  Error generating suggestions for ${city.name}:`, error)
+          // Continue with other cities even if one fails
+        }
+      }
+    }
+
     return NextResponse.json({
       trip,
       cities: cities || [],
       travelers: travelers || [],
       flights: flights || [],
       hotels: hotels || [],
+      attractions: allAttractions,
+      restaurants: allRestaurants,
       parsed: tripDetails
     })
   } catch (error: any) {
