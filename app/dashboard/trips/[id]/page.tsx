@@ -57,19 +57,19 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
   ])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       <nav className="bg-white shadow">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{trip.destination}</h1>
-              <p className="text-sm text-gray-600">
+              <h1 className="text-2xl font-bold text-slate-900">{trip.destination}</h1>
+              <p className="text-sm text-slate-600">
                 {format(new Date(trip.start_date), 'MMM d')} - {format(new Date(trip.end_date), 'MMM d, yyyy')}
               </p>
             </div>
             <a
               href="/dashboard"
-              className="text-sm text-blue-600 hover:text-blue-800"
+              className="text-sm text-teal-600 hover:text-teal-700"
             >
               ← Back to Trips
             </a>
@@ -80,10 +80,10 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
       <div className="container mx-auto px-4 py-8">
         {travelers && travelers.length > 0 && (
           <div className="mb-6 bg-white p-4 rounded-lg shadow-md">
-            <h3 className="font-semibold mb-2">Travelers:</h3>
+            <h3 className="font-semibold text-slate-800 mb-2">Travelers:</h3>
             <div className="flex flex-wrap gap-2">
               {travelers.map((traveler) => (
-                <span key={traveler.id} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                <span key={traveler.id} className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-sm">
                   {traveler.name}{traveler.age ? ` (${traveler.age})` : ''}
                 </span>
               ))}

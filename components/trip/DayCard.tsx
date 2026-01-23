@@ -56,7 +56,7 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
       {/* Day Header */}
-      <div className="bg-blue-600 text-white p-4">
+      <div className="bg-teal-600 text-white p-4">
         <h3 className="text-xl font-semibold">
           {format(date, 'EEEE, MMMM d')}
         </h3>
@@ -65,16 +65,16 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
       <div className="p-4 space-y-4">
         {/* Flights */}
         {flights.length > 0 && (
-          <div className="border-l-4 border-blue-500 pl-4 py-2 bg-blue-50 rounded">
+          <div className="border-l-4 border-sky-500 pl-4 py-2 bg-sky-50 rounded">
             {flights.map(flight => (
               <div key={flight.id} className="mb-2 last:mb-0">
-                <div className="flex items-center gap-2 text-sm font-semibold">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                   <span>✈️</span>
                   <span>
                     {flight.airline} {flight.flight_number}
                   </span>
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-slate-600">
                   {flight.departure_airport} ({formatTime(flight.departure_time)}) → {flight.arrival_airport} ({formatTime(flight.arrival_time)})
                 </div>
               </div>
@@ -84,12 +84,12 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
 
         {/* Hotel */}
         {hotel && (
-          <div className="border-l-4 border-green-500 pl-4 py-2 bg-green-50 rounded">
-            <div className="flex items-center gap-2 text-sm font-semibold">
+          <div className="border-l-4 border-amber-500 pl-4 py-2 bg-amber-50 rounded">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
               <span>🏨</span>
               <span>{hotel.name}</span>
             </div>
-            <div className="text-sm text-gray-600">{hotel.address}</div>
+            <div className="text-sm text-slate-600">{hotel.address}</div>
           </div>
         )}
 

@@ -5,7 +5,7 @@ import { eachDayOfInterval, format } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import type { Trip, Flight, Hotel, Traveler, PlanVersion, TimeBlock } from '@/types'
 import DayCard from './DayCard'
-import PlanModifier from '../ai/PlanModifier'
+import FixedAIInput from '../ai/FixedAIInput'
 
 interface Props {
   trip: Trip
@@ -257,8 +257,30 @@ export default function TripTimeline({ trip, flights, hotels, travelers, initial
   }
 
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
+    <div className="pb-24">
+      {/* Version indicator */}
+      {allVersions.length > 1 && (
+        <div className="flex items-center justify-center gap-3 mb-4 text-sm text-slate-600">
+          <button
+            onClick={() => handleVersionChange('prev')}
+            disabled={currentVersion?.version_number === 1}
+            className="px-3 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed rounded-full text-slate-700"
+          >
+            ←
+          </button>
+          <span>Version {currentVersion?.version_number} of {allVersions.length}</span>
+          <button
+            onClick={() => handleVersionChange('next')}
+            disabled={currentVersion?.version_number === allVersions.length}
+            className="px-3 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed rounded-full text-slate-700"
+          >
+            →
+          </button>
+        </div>
+      )}
+
+      {/* Days */}
+      <div className="space-y-6">
         {days.map(day => {
           const { dateStr, flights: dayFlights, hotel, blocks } = getDayData(day)
           return (
@@ -275,17 +297,11 @@ export default function TripTimeline({ trip, flights, hotels, travelers, initial
         })}
       </div>
 
-      <div className="lg:col-span-1">
-        <div className="sticky top-4">
-          <PlanModifier
-            tripId={trip.id}
-            currentVersionNumber={currentVersion?.version_number || 1}
-            totalVersions={allVersions.length}
-            onVersionChange={handleVersionChange}
-            onModificationComplete={handleModificationComplete}
-          />
-        </div>
-      </div>
+      {/* Fixed AI Input */}
+      <FixedAIInput
+        tripId={trip.id}
+        onModificationComplete={handleModificationComplete}
+      />
     </div>
   )
 }
