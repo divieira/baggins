@@ -208,17 +208,29 @@ AI endpoints are in `app/api/ai/`:
 
 **Optional**:
 - `NEXT_PUBLIC_APP_URL`: Override URL (dev only, Vercel provides VERCEL_URL)
-- `GOOGLE_MAPS_API_KEY`: Google Maps Distance Matrix API key (for accurate travel times)
-  - **Without this key**: Uses Haversine formula for distance estimates (30 km/h average)
-  - **With this key**: Fetches real driving times with traffic data from Google Maps
+- `GOOGLE_MAPS_API_KEY`: Google Maps & Places API key
+  - **Enables two features**:
+    1. **Distance Matrix API**: Accurate travel times with real-time traffic
+    2. **Places API**: Real photos for attractions and restaurants
+  - **Without this key**:
+    - Uses Haversine formula for distance estimates (30 km/h average)
+    - Uses Unsplash for attraction/restaurant images (less reliable)
+  - **With this key**:
+    - Fetches real driving times with traffic data
+    - Fetches authentic photos from Google Places
   - **Setup instructions**:
     1. Go to [Google Cloud Console](https://console.cloud.google.com/)
     2. Create a new project or select existing
-    3. Enable "Distance Matrix API" in API Library
+    3. Enable these APIs in API Library:
+       - Distance Matrix API
+       - Places API (Text Search + Place Photos)
     4. Create credentials → API key
     5. Add API key to `.env.local` as `GOOGLE_MAPS_API_KEY=your_key_here`
-    6. (Recommended) Restrict API key to Distance Matrix API only
-  - **Pricing**: 200 requests/day free, then $5-$10 per 1000 requests
+    6. (Recommended) Restrict API key to Distance Matrix + Places API only
+  - **Pricing**:
+    - Distance Matrix: 200 requests/day free, then $5-$10 per 1000 requests
+    - Places API: 200 requests/day free, then $7-$17 per 1000 requests
+    - Per trip cost: ~$0.28 (photos fetched once and cached)
 
 **Never commit**:
 - `.env.local` (local development)

@@ -18,6 +18,7 @@ const customJestConfig = {
   testPathIgnorePatterns: [
     '<rootDir>/node_modules/',
     '<rootDir>/e2e/',
+    '<rootDir>/__tests__/integration/', // Skip integration tests by default (require real API keys)
   ],
   collectCoverageFrom: [
     'app/**/*.{js,jsx,ts,tsx}',
