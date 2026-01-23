@@ -1,6 +1,3 @@
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- Users table (extends Supabase auth.users)
 CREATE TABLE users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -11,7 +8,7 @@ CREATE TABLE users (
 
 -- Trips table
 CREATE TABLE trips (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   destination TEXT NOT NULL,
   start_date DATE NOT NULL,
@@ -22,7 +19,7 @@ CREATE TABLE trips (
 
 -- Trip collaborators for sharing
 CREATE TABLE trip_collaborators (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('owner', 'editor', 'viewer')),
@@ -32,7 +29,7 @@ CREATE TABLE trip_collaborators (
 
 -- Travelers (family members, etc.)
 CREATE TABLE travelers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   age INTEGER,
@@ -42,7 +39,7 @@ CREATE TABLE travelers (
 
 -- Flights
 CREATE TABLE flights (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   departure_airport TEXT NOT NULL,
@@ -57,7 +54,7 @@ CREATE TABLE flights (
 
 -- Hotels
 CREATE TABLE hotels (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   address TEXT NOT NULL,
@@ -71,7 +68,7 @@ CREATE TABLE hotels (
 
 -- Attractions pool
 CREATE TABLE attractions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT NOT NULL,
@@ -90,7 +87,7 @@ CREATE TABLE attractions (
 
 -- Restaurants pool
 CREATE TABLE restaurants (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT NOT NULL,
@@ -108,7 +105,7 @@ CREATE TABLE restaurants (
 
 -- Plan versions for rollback
 CREATE TABLE plan_versions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   version_number INTEGER NOT NULL,
   plan_data JSONB NOT NULL,
@@ -119,7 +116,7 @@ CREATE TABLE plan_versions (
 
 -- Time blocks for daily planning
 CREATE TABLE time_blocks (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   plan_version_id UUID NOT NULL REFERENCES plan_versions(id) ON DELETE CASCADE,
   date DATE NOT NULL,
@@ -134,7 +131,7 @@ CREATE TABLE time_blocks (
 
 -- AI chat interactions
 CREATE TABLE ai_interactions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
