@@ -95,13 +95,14 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
 
         {/* Time Blocks */}
         <div className="space-y-3 mt-4">
-          {blocks.map(block => (
+          {blocks.map((block, index) => (
             <TimeBlockCard
               key={block.id}
               block={block}
               availableAttractions={getAvailableAttractions(block)}
               availableRestaurants={getAvailableRestaurants(block)}
               hotel={hotel}
+              previousBlock={index > 0 ? blocks[index - 1] : null}
               onUpdate={onBlockUpdate}
             />
           ))}

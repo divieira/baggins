@@ -21,10 +21,18 @@ Baggins helps users plan trips by:
 - **Time Block System**: Morning activity → Lunch → Afternoon activity → Dinner → Evening
 - **Smart Recommendations**:
   - Filters suggestions by opening hours
-  - Sorts by proximity to hotel
+  - Sorts by proximity to previous selection (or hotel if first activity)
   - Considers traveler ages (kid-friendly filtering)
   - Marks "best match" based on distance and suitability
-- **Dynamic Updates**: When user selects an activity, it's removed from other time blocks
+  - **NEW**: Dynamic origin calculation based on previous time block selection
+  - **NEW**: Real-time travel time updates when selections change
+- **Travel Times & Maps**:
+  - **NEW**: Google Maps integration for accurate driving times with traffic
+  - **NEW**: Fallback to Haversine formula estimates when API key not configured
+  - **NEW**: "View on Maps" link for each attraction/restaurant
+  - **NEW**: "Get Directions" link from previous location or hotel
+  - **NEW**: Origin indicator shows travel from previous selection (e.g., "from Natural History Museum")
+- **Dynamic Updates**: When user selects an activity, it's removed from other time blocks and travel times recalculate
 - **AI Chat**: Ask for modifications, specific suggestions, or destination advice
 - **Version Control**: Database schema supports plan rollback (UI pending)
 - **Collaboration**: Database schema supports shared trips with role-based access (UI pending)
@@ -33,17 +41,17 @@ Baggins helps users plan trips by:
 ### In Progress 🚧
 - Real-time collaboration UI (database ready)
 - Version history UI with rollback
-- Travel time calculations between locations
-- More sophisticated recommendation algorithm
+- More sophisticated recommendation algorithm (opening hours filtering, kid-friendly in UI)
 
 ### Planned 📋
-- Map view integration
+- Interactive map view (embedded maps with all locations)
 - Calendar export (iCal)
 - Budget tracking
 - Photo uploads for places
 - Reviews and ratings
 - Social sharing features
 - Multi-destination trips
+- Alternative transportation modes (walking, transit, bicycling)
 
 ## Architecture
 
@@ -200,6 +208,17 @@ AI endpoints are in `app/api/ai/`:
 
 **Optional**:
 - `NEXT_PUBLIC_APP_URL`: Override URL (dev only, Vercel provides VERCEL_URL)
+- `GOOGLE_MAPS_API_KEY`: Google Maps Distance Matrix API key (for accurate travel times)
+  - **Without this key**: Uses Haversine formula for distance estimates (30 km/h average)
+  - **With this key**: Fetches real driving times with traffic data from Google Maps
+  - **Setup instructions**:
+    1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+    2. Create a new project or select existing
+    3. Enable "Distance Matrix API" in API Library
+    4. Create credentials → API key
+    5. Add API key to `.env.local` as `GOOGLE_MAPS_API_KEY=your_key_here`
+    6. (Recommended) Restrict API key to Distance Matrix API only
+  - **Pricing**: 200 requests/day free, then $5-$10 per 1000 requests
 
 **Never commit**:
 - `.env.local` (local development)
