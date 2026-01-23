@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import TripTimeline from '@/components/trip/TripTimeline'
-import { eachDayOfInterval, format } from 'date-fns'
+import MultiCityTimeline from '@/components/trip/MultiCityTimeline'
+import { format } from 'date-fns'
 
 export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -37,13 +37,15 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
     redirect('/dashboard')
   }
 
-  // Fetch all trip data
+  // Fetch all trip data including cities
   const [
+    { data: cities, error: citiesError },
     { data: travelers },
     { data: flights },
     { data: hotels },
     { data: latestVersion },
   ] = await Promise.all([
+    supabase.from('trip_cities').select('*').eq('trip_id', id).order('order_index'),
     supabase.from('travelers').select('*').eq('trip_id', id),
     supabase.from('flights').select('*').eq('trip_id', id).order('date'),
     supabase.from('hotels').select('*').eq('trip_id', id).order('check_in_date'),
@@ -56,6 +58,35 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
       .single()
   ])
 
+  if (citiesError) {
+    console.error('Error fetching cities:', citiesError)
+  }
+
+  // If no cities exist, create one from the trip destination (for backwards compatibility)
+  let finalCities = cities || []
+  if (finalCities.length === 0) {
+    // Create a default city from the trip destination
+    const { data: newCity, error: insertError } = await supabase
+      .from('trip_cities')
+      .insert({
+        trip_id: id,
+        name: trip.destination,
+        start_date: trip.start_date,
+        end_date: trip.end_date,
+        order_index: 0
+      })
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error('Error creating default city:', insertError)
+    }
+
+    if (newCity) {
+      finalCities = [newCity]
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       <nav className="bg-white shadow">
@@ -66,6 +97,11 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
               <p className="text-sm text-slate-600">
                 {format(new Date(trip.start_date), 'MMM d')} - {format(new Date(trip.end_date), 'MMM d, yyyy')}
               </p>
+              {finalCities.length > 1 && (
+                <p className="text-xs text-indigo-600 mt-1">
+                  {finalCities.length} cities
+                </p>
+              )}
             </div>
             <a
               href="/dashboard"
@@ -91,12 +127,13 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
           </div>
         )}
 
-        <TripTimeline
+        <MultiCityTimeline
           trip={trip}
           flights={flights || []}
           hotels={hotels || []}
           travelers={travelers || []}
           initialVersion={latestVersion}
+          cities={finalCities}
         />
       </div>
     </div>

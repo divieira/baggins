@@ -1,15 +1,29 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { generateCitySuggestions } from '@/lib/ai/generate-suggestions'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 })
 
-interface TripDetails {
-  destination: string
+interface CityDetails {
+  name: string
   start_date: string
   end_date: string
+  hotel?: {
+    name: string
+    address: string
+    latitude?: number
+    longitude?: number
+  }
+}
+
+interface TripDetails {
+  destination: string  // Primary destination (for backwards compatibility)
+  start_date: string   // Overall trip start
+  end_date: string     // Overall trip end
+  cities: CityDetails[]  // Multi-city support
   travelers: Array<{
     name: string
     age?: number
@@ -22,12 +36,7 @@ interface TripDetails {
     arrival_time: string
     from_location: string
     to_location: string
-  }>
-  hotels?: Array<{
-    name: string
-    check_in_date: string
-    check_out_date: string
-    address: string
+    date: string
   }>
 }
 
@@ -57,45 +66,64 @@ export async function POST(request: Request) {
       system: `You are a trip details parser. Extract structured trip information from user messages.
 
 Instructions:
-- Extract destination, start_date, end_date, travelers, flights, and hotels if mentioned
+- Extract destination(s), dates, travelers, flights, and hotels if mentioned
+- IMPORTANT: Support multi-city trips! If user mentions multiple cities, extract each with its own dates
 - Use ISO date format (YYYY-MM-DD) for dates
 - If year is not mentioned, assume current year (2026)
 - For travelers, extract names, ages, and relationships if provided
 - For flights, extract airline, flight number, times, and locations
-- For hotels, extract name, check-in/check-out dates, and address
+- For hotels, include approximate coordinates (latitude, longitude) if you know the city
 - If information is partial or missing, include what you can extract
 - Return ONLY valid JSON, no additional text
 
-Example output:
+Example output for multi-city trip:
 {
-  "destination": "Paris, France",
+  "destination": "Paris, France & Rome, Italy",
   "start_date": "2026-03-15",
-  "end_date": "2026-03-20",
+  "end_date": "2026-03-22",
+  "cities": [
+    {
+      "name": "Paris, France",
+      "start_date": "2026-03-15",
+      "end_date": "2026-03-18",
+      "hotel": {
+        "name": "Hotel Eiffel",
+        "address": "123 Rue de la Paix, Paris",
+        "latitude": 48.8566,
+        "longitude": 2.3522
+      }
+    },
+    {
+      "name": "Rome, Italy",
+      "start_date": "2026-03-18",
+      "end_date": "2026-03-22",
+      "hotel": {
+        "name": "Hotel Roma",
+        "address": "Via Condotti, Rome",
+        "latitude": 41.9028,
+        "longitude": 12.4964
+      }
+    }
+  ],
   "travelers": [
     {"name": "John", "relation": "self"},
-    {"name": "Jane", "relation": "wife"},
-    {"name": "Tommy", "age": 8, "relation": "son"},
-    {"name": "Sarah", "age": 5, "relation": "daughter"}
+    {"name": "Jane", "age": 35, "relation": "wife"},
+    {"name": "Tommy", "age": 8, "relation": "son"}
   ],
   "flights": [
     {
       "airline": "Air France",
       "flight_number": "AF123",
-      "departure_time": "2026-03-15T10:00:00",
-      "arrival_time": "2026-03-15T14:30:00",
-      "from_location": "New York JFK",
-      "to_location": "Paris CDG"
-    }
-  ],
-  "hotels": [
-    {
-      "name": "Hotel Eiffel",
-      "check_in_date": "2026-03-15",
-      "check_out_date": "2026-03-20",
-      "address": "123 Rue de la Paix, Paris"
+      "departure_time": "10:00",
+      "arrival_time": "14:30",
+      "from_location": "JFK",
+      "to_location": "CDG",
+      "date": "2026-03-15"
     }
   ]
-}`,
+}
+
+For single-city trips, still include the "cities" array with one entry.`,
       messages: [
         { role: 'user', content: message }
       ]
@@ -127,6 +155,16 @@ Example output:
       }, { status: 400 })
     }
 
+    // Ensure cities array exists
+    if (!tripDetails.cities || tripDetails.cities.length === 0) {
+      // Create a single city from the destination
+      tripDetails.cities = [{
+        name: tripDetails.destination,
+        start_date: tripDetails.start_date,
+        end_date: tripDetails.end_date
+      }]
+    }
+
     // Create or update trip
     let trip
     if (tripId) {
@@ -140,7 +178,7 @@ Example output:
           updated_at: new Date().toISOString()
         })
         .eq('id', tripId)
-        .eq('user_id', user.id) // Ensure user owns the trip
+        .eq('user_id', user.id)
         .select()
         .single()
 
@@ -172,9 +210,81 @@ Example output:
         })
     }
 
+    // Delete existing cities if updating
+    if (tripId) {
+      await supabase
+        .from('trip_cities')
+        .delete()
+        .eq('trip_id', trip.id)
+    }
+
+    // Create trip_cities records
+    const citiesToInsert = tripDetails.cities.map((city, index) => ({
+      trip_id: trip.id,
+      name: city.name,
+      start_date: city.start_date,
+      end_date: city.end_date,
+      order_index: index
+    }))
+
+    const { data: insertedCities, error: citiesError } = await supabase
+      .from('trip_cities')
+      .insert(citiesToInsert)
+      .select()
+
+    if (citiesError) {
+      console.error('Error inserting cities:', citiesError)
+      // Don't fail silently - return error to help diagnose issues
+      return NextResponse.json(
+        { error: `Failed to create trip cities: ${citiesError.message}`, details: citiesError },
+        { status: 500 }
+      )
+    }
+
+    if (!insertedCities || insertedCities.length === 0) {
+      console.error('No cities were inserted despite no error')
+      return NextResponse.json(
+        { error: 'Failed to create trip cities: No cities returned after insert' },
+        { status: 500 }
+      )
+    }
+
+    // Create hotels linked to cities
+    if (insertedCities) {
+      // Delete existing hotels if updating
+      if (tripId) {
+        await supabase
+          .from('hotels')
+          .delete()
+          .eq('trip_id', trip.id)
+      }
+
+      const hotelsToInsert = tripDetails.cities
+        .map((city, index) => {
+          if (!city.hotel) return null
+          const cityRecord = insertedCities[index]
+          return {
+            trip_id: trip.id,
+            city_id: cityRecord.id,
+            name: city.hotel.name,
+            address: city.hotel.address,
+            check_in_date: city.start_date,
+            check_out_date: city.end_date,
+            latitude: city.hotel.latitude || null,
+            longitude: city.hotel.longitude || null
+          }
+        })
+        .filter(Boolean)
+
+      if (hotelsToInsert.length > 0) {
+        await supabase
+          .from('hotels')
+          .insert(hotelsToInsert)
+      }
+    }
+
     // Add travelers if provided
     if (tripDetails.travelers && tripDetails.travelers.length > 0) {
-      // Delete existing travelers if updating
       if (tripId) {
         await supabase
           .from('travelers')
@@ -208,8 +318,9 @@ Example output:
         flight_number: f.flight_number,
         departure_time: f.departure_time,
         arrival_time: f.arrival_time,
-        from_location: f.from_location,
-        to_location: f.to_location
+        departure_airport: f.from_location,
+        arrival_airport: f.to_location,
+        date: f.date
       }))
 
       await supabase
@@ -217,44 +328,54 @@ Example output:
         .insert(flightsToInsert)
     }
 
-    // Add hotels if provided
-    if (tripDetails.hotels && tripDetails.hotels.length > 0) {
-      if (tripId) {
-        await supabase
-          .from('hotels')
-          .delete()
-          .eq('trip_id', trip.id)
-      }
-
-      const hotelsToInsert = tripDetails.hotels.map(h => ({
-        trip_id: trip.id,
-        name: h.name,
-        check_in_date: h.check_in_date,
-        check_out_date: h.check_out_date,
-        address: h.address
-      }))
-
-      await supabase
-        .from('hotels')
-        .insert(hotelsToInsert)
-    }
-
     // Fetch the complete trip with all details
     const [
+      { data: cities },
       { data: travelers },
       { data: flights },
       { data: hotels }
     ] = await Promise.all([
+      supabase.from('trip_cities').select('*').eq('trip_id', trip.id).order('order_index'),
       supabase.from('travelers').select('*').eq('trip_id', trip.id),
       supabase.from('flights').select('*').eq('trip_id', trip.id),
       supabase.from('hotels').select('*').eq('trip_id', trip.id)
     ])
 
+    // Auto-generate suggestions for each city
+    const allAttractions: any[] = []
+    const allRestaurants: any[] = []
+
+    if (cities && cities.length > 0) {
+      console.log(`Generating suggestions for ${cities.length} cities...`)
+
+      for (const city of cities) {
+        try {
+          console.log(`  Generating suggestions for ${city.name}...`)
+          const { attractions, restaurants } = await generateCitySuggestions({
+            supabase,
+            tripId: trip.id,
+            cityId: city.id,
+            cityName: city.name,
+            travelers: travelers || []
+          })
+          allAttractions.push(...attractions)
+          allRestaurants.push(...restaurants)
+          console.log(`  ✓ Generated ${attractions.length} attractions and ${restaurants.length} restaurants for ${city.name}`)
+        } catch (error) {
+          console.error(`  Error generating suggestions for ${city.name}:`, error)
+          // Continue with other cities even if one fails
+        }
+      }
+    }
+
     return NextResponse.json({
       trip,
+      cities: cities || [],
       travelers: travelers || [],
       flights: flights || [],
       hotels: hotels || [],
+      attractions: allAttractions,
+      restaurants: allRestaurants,
       parsed: tripDetails
     })
   } catch (error: any) {

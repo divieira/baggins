@@ -152,6 +152,7 @@ export interface Database {
         Row: {
           id: string
           trip_id: string
+          city_id: string | null
           name: string
           address: string
           check_in_date: string
@@ -164,6 +165,7 @@ export interface Database {
         Insert: {
           id?: string
           trip_id: string
+          city_id?: string | null
           name: string
           address: string
           check_in_date: string
@@ -176,6 +178,7 @@ export interface Database {
         Update: {
           id?: string
           trip_id?: string
+          city_id?: string | null
           name?: string
           address?: string
           check_in_date?: string
@@ -190,6 +193,7 @@ export interface Database {
         Row: {
           id: string
           trip_id: string
+          city_id: string | null
           name: string
           description: string
           image_url: string | null
@@ -207,6 +211,7 @@ export interface Database {
         Insert: {
           id?: string
           trip_id: string
+          city_id?: string | null
           name: string
           description: string
           image_url?: string | null
@@ -224,6 +229,7 @@ export interface Database {
         Update: {
           id?: string
           trip_id?: string
+          city_id?: string | null
           name?: string
           description?: string
           image_url?: string | null
@@ -243,6 +249,7 @@ export interface Database {
         Row: {
           id: string
           trip_id: string
+          city_id: string | null
           name: string
           description: string
           image_url: string | null
@@ -259,6 +266,7 @@ export interface Database {
         Insert: {
           id?: string
           trip_id: string
+          city_id?: string | null
           name: string
           description: string
           image_url?: string | null
@@ -275,6 +283,7 @@ export interface Database {
         Update: {
           id?: string
           trip_id?: string
+          city_id?: string | null
           name?: string
           description?: string
           image_url?: string | null
@@ -319,6 +328,7 @@ export interface Database {
         Row: {
           id: string
           trip_id: string
+          city_id: string | null
           plan_version_id: string
           date: string
           block_type: 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'evening'
@@ -332,6 +342,7 @@ export interface Database {
         Insert: {
           id?: string
           trip_id: string
+          city_id?: string | null
           plan_version_id: string
           date: string
           block_type: 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'evening'
@@ -345,6 +356,7 @@ export interface Database {
         Update: {
           id?: string
           trip_id?: string
+          city_id?: string | null
           plan_version_id?: string
           date?: string
           block_type?: 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'evening'
@@ -352,6 +364,38 @@ export interface Database {
           end_time?: string
           selected_attraction_id?: string | null
           selected_restaurant_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      trip_cities: {
+        Row: {
+          id: string
+          trip_id: string
+          name: string
+          start_date: string
+          end_date: string
+          order_index: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          name: string
+          start_date: string
+          end_date: string
+          order_index?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          trip_id?: string
+          name?: string
+          start_date?: string
+          end_date?: string
+          order_index?: number
           created_at?: string
           updated_at?: string
         }

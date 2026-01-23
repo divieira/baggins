@@ -479,8 +479,8 @@ export default function TimeBlockCard({
         </div>
       )}
 
-      {/* Horizontal Scrolling Suggestions */}
-      {suggestions.length > 0 ? (
+      {/* Horizontal Scrolling Suggestions - Hidden when item is selected */}
+      {!selectedItem && suggestions.length > 0 ? (
         <div className="p-3 bg-slate-50">
           <div
             className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-3 px-3"
@@ -498,20 +498,12 @@ export default function TimeBlockCard({
               />
             ))}
           </div>
-          {/* Scroll indicator */}
-          <div className="flex justify-center mt-2 gap-1">
-            {suggestions.length > 1 && (
-              <p className="text-xs text-slate-500">
-                Scroll to see {suggestions.length} suggestions
-              </p>
-            )}
-          </div>
         </div>
-      ) : (
+      ) : !selectedItem ? (
         <div className="p-4 text-center text-sm text-slate-600">
           No suggestions available
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
