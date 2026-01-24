@@ -39,7 +39,7 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([])
   const [selections, setSelections] = useState<CitySelections>({})
   const [viewMode, setViewMode] = useState<'selection' | 'timeline'>('selection')
-  const [generatingItinerary, setGeneratingItinerary] = useState<string | null>(null)
+  const [generatingItinerary, setGeneratingItinerary] = useState(false)
   const [usingCachedData, setUsingCachedData] = useState(false)
   const supabase = createClient()
   const isOnline = useIsOnline()
@@ -112,31 +112,39 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
     }))
   }
 
-  const handleGenerateItinerary = async (cityId: string) => {
+  const handleGenerateItinerary = async () => {
     if (!isOnline) {
       console.warn('Cannot generate itinerary while offline')
       return
     }
 
-    const citySelections = selections[cityId]
-    if (!citySelections) return
+    // Get all cities with selections
+    const citiesToGenerate = Object.keys(selections).filter(
+      cityId => selections[cityId].attractionIds.length > 0
+    )
 
-    setGeneratingItinerary(cityId)
+    if (citiesToGenerate.length === 0) return
+
+    setGeneratingItinerary(true)
 
     try {
-      const response = await fetch('/api/ai/generate-itinerary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tripId: trip.id,
-          cityId,
-          selectedAttractionIds: citySelections.attractionIds
-          // Restaurant selection is automatic - AI picks best restaurants
+      // Generate itineraries for all cities with selections
+      for (const cityId of citiesToGenerate) {
+        const citySelections = selections[cityId]
+        const response = await fetch('/api/ai/generate-itinerary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tripId: trip.id,
+            cityId,
+            selectedAttractionIds: citySelections.attractionIds
+            // Restaurant selection is automatic - AI picks best restaurants
+          })
         })
-      })
 
-      if (!response.ok) {
-        throw new Error('Failed to generate itinerary')
+        if (!response.ok) {
+          throw new Error(`Failed to generate itinerary for city ${cityId}`)
+        }
       }
 
       // Reload versions and time blocks
@@ -145,7 +153,7 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
     } catch (error) {
       console.error('Error generating itinerary:', error)
     } finally {
-      setGeneratingItinerary(null)
+      setGeneratingItinerary(false)
     }
   }
 
@@ -327,11 +335,45 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
                 tripId={trip.id}
                 travelers={travelers}
                 onSelectionsChange={handleSelectionsChange}
-                onGenerateItinerary={handleGenerateItinerary}
-                isGenerating={generatingItinerary === city.id}
                 isOffline={!isOnline}
               />
             ))
+          )}
+
+          {/* Generate Itinerary Button for All Cities */}
+          {cities.length > 0 && (
+            <div className="sticky bottom-4 mt-6 pt-4 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent">
+              <button
+                onClick={handleGenerateItinerary}
+                disabled={generatingItinerary || Object.keys(selections).every(cityId => selections[cityId].attractionIds.length === 0) || !isOnline}
+                className={`w-full py-4 rounded-lg font-semibold text-lg transition-all ${
+                  Object.keys(selections).some(cityId => selections[cityId].attractionIds.length > 0) && isOnline
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                } disabled:opacity-50`}
+              >
+                {generatingItinerary ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Generating Itineraries...
+                  </span>
+                ) : !isOnline ? (
+                  'Connect to internet to generate itinerary'
+                ) : Object.keys(selections).some(cityId => selections[cityId].attractionIds.length > 0) ? (
+                  `Generate Itinerary${Object.keys(selections).length > 1 ? ' for All Cities' : ''}`
+                ) : (
+                  'Select Attractions to Generate Itinerary'
+                )}
+              </button>
+              {Object.keys(selections).some(cityId => selections[cityId].attractionIds.length > 0) && isOnline && (
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  AI will create an optimal schedule and select restaurants for you
+                </p>
+              )}
+            </div>
           )}
         </div>
       ) : (

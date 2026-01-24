@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import MultiCityTimeline from '@/components/trip/MultiCityTimeline'
 import TripDataCacher from '@/components/offline/TripDataCacher'
+import DeleteTripButton from '@/components/trip/DeleteTripButton'
 import { format } from 'date-fns'
 
 export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
@@ -104,12 +105,17 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
                 </p>
               )}
             </div>
-            <a
-              href="/dashboard"
-              className="text-sm text-teal-600 hover:text-teal-700"
-            >
-              ← Back to Trips
-            </a>
+            <div className="flex items-center gap-4">
+              {isOwner && (
+                <DeleteTripButton tripId={trip.id} tripName={trip.destination} />
+              )}
+              <a
+                href="/dashboard"
+                className="text-sm text-teal-600 hover:text-teal-700"
+              >
+                ← Back to Trips
+              </a>
+            </div>
           </div>
         </div>
       </nav>
