@@ -14,6 +14,7 @@ interface Props {
   hotel: Hotel | null | undefined
   previousBlock?: TimeBlock | null
   onUpdate: (blockId: string, updates: Partial<TimeBlock>) => Promise<void>
+  isOffline?: boolean
 }
 
 interface SuggestionWithDistance {
@@ -43,7 +44,8 @@ function SuggestionCard({
   originLocation,
   loadingTravelTimes,
   isSelected,
-  onSelect
+  onSelect,
+  isOffline = false
 }: {
   suggestion: SuggestionWithDistance
   isBestMatch: boolean
@@ -52,6 +54,7 @@ function SuggestionCard({
   loadingTravelTimes: boolean
   isSelected?: boolean
   onSelect: () => void
+  isOffline?: boolean
 }) {
   // Placeholder image when no image is available
   const placeholderImage = isRestaurant
@@ -69,12 +72,12 @@ function SuggestionCard({
       {/* Photo */}
       <div
         className={`relative w-full ${isRestaurant ? 'h-32' : 'h-48'}`}
-        onClick={onSelect}
+        onClick={!isOffline ? onSelect : undefined}
       >
         <img
           src={suggestion.image_url || placeholderImage}
           alt={suggestion.name}
-          className="w-full h-full object-cover cursor-pointer"
+          className={`w-full h-full object-cover ${!isOffline ? 'cursor-pointer' : ''}`}
         />
         {isSelected && (
           <span className="absolute top-2 right-2 text-xs bg-emerald-500 text-white px-2 py-1 rounded-full font-semibold shadow-lg">
@@ -91,8 +94,8 @@ function SuggestionCard({
       {/* Content */}
       <div className="p-3">
         <h4
-          className="font-semibold text-base text-stone-800 cursor-pointer hover:text-orange-600 transition-colors"
-          onClick={onSelect}
+          className={`font-semibold text-base text-stone-800 ${!isOffline ? 'cursor-pointer hover:text-orange-600' : ''} transition-colors`}
+          onClick={!isOffline ? onSelect : undefined}
         >
           {isBestMatch && <span className="text-orange-500 mr-1">★</span>}
           {suggestion.name}
@@ -162,13 +165,18 @@ function SuggestionCard({
           </div>
         </div>
 
-        {/* Select Button - Hidden when selected */}
+        {/* Select Button - Hidden when selected, disabled when offline */}
         {!isSelected && (
           <button
             onClick={onSelect}
-            className="mt-3 w-full bg-gradient-to-r from-orange-400 to-rose-400 hover:from-orange-500 hover:to-rose-500 text-white text-sm font-semibold py-2 px-4 rounded-xl shadow-lg shadow-orange-200 transition-all"
+            disabled={isOffline}
+            className={`mt-3 w-full text-white text-sm font-semibold py-2 px-4 rounded-xl shadow-lg transition-all ${
+              isOffline
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-orange-400 to-rose-400 hover:from-orange-500 hover:to-rose-500 shadow-orange-200'
+            }`}
           >
-            Select
+            {isOffline ? 'Offline' : 'Select'}
           </button>
         )}
       </div>
@@ -182,7 +190,8 @@ export default function TimeBlockCard({
   availableRestaurants,
   hotel,
   previousBlock,
-  onUpdate
+  onUpdate,
+  isOffline = false
 }: Props) {
   const [selectedItem, setSelectedItem] = useState<Attraction | Restaurant | null>(null)
   const [previousSelection, setPreviousSelection] = useState<Attraction | Restaurant | null>(null)
@@ -322,7 +331,7 @@ export default function TimeBlockCard({
     setSuggestions(suggestions)
 
     // Fetch real travel times for top 10 suggestions if Google Maps API is configured
-    if (suggestions.length > 0) {
+    if (suggestions.length > 0 && !isOffline) {
       fetchRealTravelTimes(suggestions.slice(0, 10), originLocation)
     }
   }
@@ -376,6 +385,11 @@ export default function TimeBlockCard({
   }
 
   const handleSelect = async (suggestion: SuggestionWithDistance) => {
+    if (isOffline) {
+      console.warn('Cannot select items while offline')
+      return
+    }
+
     const updates: Partial<TimeBlock> = {
       selected_attraction_id: suggestion.type === 'attraction' ? suggestion.id : null,
       selected_restaurant_id: suggestion.type === 'restaurant' ? suggestion.id : null
@@ -385,6 +399,11 @@ export default function TimeBlockCard({
   }
 
   const handleClear = async () => {
+    if (isOffline) {
+      console.warn('Cannot clear items while offline')
+      return
+    }
+
     const updates: Partial<TimeBlock> = {
       selected_attraction_id: null,
       selected_restaurant_id: null
@@ -431,6 +450,14 @@ export default function TimeBlockCard({
             </span>
           )}
         </div>
+        {selectedItem && !isOffline && (
+          <button
+            onClick={handleClear}
+            className="text-xs text-rose-600 hover:text-rose-700"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Horizontal Scrolling Suggestions - Always visible, selected item shown as first card */}
@@ -486,6 +513,7 @@ export default function TimeBlockCard({
                     loadingTravelTimes={loadingTravelTimes && index < 5}
                     isSelected={isSelectedCard}
                     onSelect={() => handleSelect(item)}
+                    isOffline={isOffline}
                   />
                 )
               })}

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import MultiCityTimeline from '@/components/trip/MultiCityTimeline'
+import TripDataCacher from '@/components/offline/TripDataCacher'
 import { format } from 'date-fns'
 
 export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
@@ -126,6 +127,16 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
         )}
+
+        {/* Cache trip data for offline access */}
+        <TripDataCacher
+          trip={trip}
+          flights={flights || []}
+          hotels={hotels || []}
+          travelers={travelers || []}
+          cities={finalCities}
+          latestVersion={latestVersion}
+        />
 
         <MultiCityTimeline
           trip={trip}
