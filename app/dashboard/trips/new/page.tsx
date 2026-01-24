@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
+// Force dynamic rendering to prevent prerender errors with Supabase client
+export const dynamic = 'force-dynamic'
+
 interface Traveler {
   name: string
   age: string
@@ -30,7 +33,6 @@ interface Hotel {
 
 export default function NewTrip() {
   const router = useRouter()
-  const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -128,6 +130,7 @@ export default function NewTrip() {
     setError(null)
 
     try {
+      const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 

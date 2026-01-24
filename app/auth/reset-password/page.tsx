@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
+// Force dynamic rendering to prevent prerender errors with Supabase client
+export const dynamic = 'force-dynamic'
+
 export default function ResetPassword() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -11,16 +14,16 @@ export default function ResetPassword() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
     // Check if user has valid reset token
+    const supabase = createClient()
     supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         // User is in password recovery mode
       }
     })
-  }, [supabase])
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,6 +43,7 @@ export default function ResetPassword() {
     }
 
     try {
+      const supabase = createClient()
       const { error } = await supabase.auth.updateUser({
         password: password,
       })
