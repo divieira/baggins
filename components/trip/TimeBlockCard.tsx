@@ -462,7 +462,7 @@ export default function TimeBlockCard({
 
       {/* Horizontal Scrolling Suggestions - Always visible, selected item shown as first card */}
       {(() => {
-        // Prepare display list: selected item first (if any), then suggestions
+        // Prepare display list: selected item first (if any), then suggestions (excluding selected)
         const displayItems = selectedItem
           ? [
               {
@@ -489,7 +489,8 @@ export default function TimeBlockCard({
                 cuisine_type: 'cuisine_type' in selectedItem ? selectedItem.cuisine_type : undefined,
                 price_level: 'price_level' in selectedItem ? selectedItem.price_level : undefined,
               },
-              ...suggestions
+              // Filter out the selected item from suggestions to avoid duplicates
+              ...suggestions.filter(s => s.id !== selectedItem.id)
             ]
           : suggestions
 
