@@ -347,10 +347,21 @@ For single-city trips, still include the "cities" array with one entry.`,
 
     if (cities && cities.length > 0) {
       console.log(`Generating suggestions for ${cities.length} cities...`)
+      console.log(`Cities:`, cities.map(c => ({ id: c.id, name: c.name, order_index: c.order_index })))
 
       for (const city of cities) {
         try {
-          console.log(`  Generating suggestions for ${city.name}...`)
+          // Validate city has required fields
+          if (!city.id) {
+            console.error(`  ⚠️  City missing ID:`, city)
+            throw new Error(`City ${city.name} is missing an ID`)
+          }
+          if (!city.name) {
+            console.error(`  ⚠️  City missing name:`, city)
+            throw new Error(`City with ID ${city.id} is missing a name`)
+          }
+
+          console.log(`  Generating suggestions for ${city.name} (ID: ${city.id})...`)
           const { attractions, restaurants } = await generateCitySuggestions({
             supabase,
             tripId: trip.id,
@@ -361,8 +372,22 @@ For single-city trips, still include the "cities" array with one entry.`,
           allAttractions.push(...attractions)
           allRestaurants.push(...restaurants)
           console.log(`  ✓ Generated ${attractions.length} attractions and ${restaurants.length} restaurants for ${city.name}`)
+
+          // Verify attractions were created with correct city_id
+          if (attractions.length > 0) {
+            const sampleAttr = attractions[0]
+            if (sampleAttr.city_id !== city.id) {
+              console.error(`  ⚠️  WARNING: Attraction city_id mismatch!`)
+              console.error(`     Expected: ${city.id}`)
+              console.error(`     Got: ${sampleAttr.city_id}`)
+            }
+            if (!sampleAttr.city_id) {
+              console.error(`  ⚠️  CRITICAL: Attraction created with NULL city_id!`)
+              console.error(`     This will cause attractions to not show up in the UI.`)
+            }
+          }
         } catch (error) {
-          console.error(`  Error generating suggestions for ${city.name}:`, error)
+          console.error(`  ✗ Error generating suggestions for ${city.name}:`, error)
           // Continue with other cities even if one fails
         }
       }
