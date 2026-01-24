@@ -60,10 +60,10 @@ function SuggestionCard({
 
   return (
     <div
-      className={`flex-shrink-0 snap-center bg-white rounded-xl shadow-md overflow-hidden ${
+      className={`flex-shrink-0 snap-center bg-white rounded-2xl shadow-lg overflow-hidden transition-all ${
         isSelected
-          ? 'border-2 border-emerald-500 ring-2 ring-emerald-200'
-          : 'border border-slate-200'
+          ? 'border-2 border-emerald-500 ring-2 ring-emerald-100 shadow-emerald-100'
+          : 'border border-stone-200 hover:shadow-xl'
       } ${isRestaurant ? 'w-[85vw] max-w-[340px]' : 'w-[85vw] max-w-[340px]'}`}
     >
       {/* Photo */}
@@ -77,12 +77,12 @@ function SuggestionCard({
           className="w-full h-full object-cover cursor-pointer"
         />
         {isSelected && (
-          <span className="absolute top-2 right-2 text-xs bg-emerald-500 text-white px-2 py-1 rounded-full font-medium shadow">
+          <span className="absolute top-2 right-2 text-xs bg-emerald-500 text-white px-2 py-1 rounded-full font-semibold shadow-lg">
             Selected ✓
           </span>
         )}
         {!isSelected && isBestMatch && (
-          <span className="absolute top-2 right-2 text-xs bg-emerald-500 text-white px-2 py-1 rounded-full font-medium shadow">
+          <span className="absolute top-2 right-2 text-xs bg-gradient-to-r from-orange-400 to-rose-400 text-white px-2 py-1 rounded-full font-semibold shadow-lg">
             Best match
           </span>
         )}
@@ -91,23 +91,23 @@ function SuggestionCard({
       {/* Content */}
       <div className="p-3">
         <h4
-          className="font-semibold text-base text-slate-800 cursor-pointer hover:text-teal-600"
+          className="font-semibold text-base text-stone-800 cursor-pointer hover:text-orange-600 transition-colors"
           onClick={onSelect}
         >
-          {isBestMatch && <span className="text-emerald-500 mr-1">★</span>}
+          {isBestMatch && <span className="text-orange-500 mr-1">★</span>}
           {suggestion.name}
         </h4>
-        <p className="text-sm text-slate-600 line-clamp-2 mt-1">
+        <p className="text-sm text-stone-600 line-clamp-2 mt-1">
           {suggestion.description}
         </p>
 
         {/* Details - Always visible */}
-        <div className="mt-2 pt-2 border-t border-slate-100 space-y-2">
+        <div className="mt-2 pt-2 border-t border-stone-100 space-y-2">
           {/* Highlights/Tags */}
           {suggestion.highlights.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {suggestion.highlights.map((highlight, i) => (
-                <span key={i} className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                <span key={i} className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-100">
                   {highlight}
                 </span>
               ))}
@@ -115,7 +115,7 @@ function SuggestionCard({
           )}
 
           {/* Distance & Travel Time */}
-          <div className="text-xs text-slate-600 space-y-1">
+          <div className="text-xs text-stone-600 space-y-1">
             <p>
               {formatDistance(suggestion.distance_km)} from {suggestion.origin_name} •{' '}
               {suggestion.travel_time_text || formatTravelTime(suggestion.travel_time_minutes)}
@@ -137,14 +137,14 @@ function SuggestionCard({
               )}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-teal-600 hover:text-teal-700 underline"
+              className="text-orange-600 hover:text-orange-700 font-medium underline"
               onClick={(e) => e.stopPropagation()}
             >
               View on Maps
             </a>
             {originLocation && (
               <>
-                <span className="text-slate-400">•</span>
+                <span className="text-stone-400">•</span>
                 <a
                   href={generateMapsDirectionsLink(
                     originLocation,
@@ -152,7 +152,7 @@ function SuggestionCard({
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-teal-600 hover:text-teal-700 underline"
+                  className="text-orange-600 hover:text-orange-700 font-medium underline"
                   onClick={(e) => e.stopPropagation()}
                 >
                   Get Directions
@@ -166,7 +166,7 @@ function SuggestionCard({
         {!isSelected && (
           <button
             onClick={onSelect}
-            className="mt-3 w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+            className="mt-3 w-full bg-gradient-to-r from-orange-400 to-rose-400 hover:from-orange-500 hover:to-rose-500 text-white text-sm font-semibold py-2 px-4 rounded-xl shadow-lg shadow-orange-200 transition-all"
           >
             Select
           </button>
@@ -420,12 +420,12 @@ export default function TimeBlockCard({
   }
 
   return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+    <div className="border border-stone-200 rounded-2xl overflow-hidden bg-white shadow-sm">
       {/* Block Header */}
-      <div className="bg-slate-50 px-4 py-2 flex justify-between items-center">
+      <div className="bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3 flex justify-between items-center border-b border-stone-100">
         <div>
-          <span className="font-medium text-sm text-slate-800">{getBlockLabel()}</span>
-          <span className="text-xs text-slate-500 ml-2">
+          <span className="font-semibold text-sm text-stone-800">{getBlockLabel()}</span>
+          <span className="text-xs text-stone-500 ml-2">
             {formatTime(block.start_time)} - {formatTime(block.end_time)}
           </span>
         </div>
@@ -465,7 +465,7 @@ export default function TimeBlockCard({
           : suggestions
 
         return displayItems.length > 0 ? (
-          <div className="p-3 bg-slate-50">
+          <div className="p-3 bg-gradient-to-br from-amber-50/50 to-orange-50/50">
             <div
               className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-3 px-3"
               style={{ scrollbarWidth: 'thin' }}
@@ -490,7 +490,7 @@ export default function TimeBlockCard({
             </div>
           </div>
         ) : (
-          <div className="p-4 text-center text-sm text-slate-600">
+          <div className="p-4 text-center text-sm text-stone-500 italic">
             No suggestions available
           </div>
         )
