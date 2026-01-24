@@ -10,8 +10,6 @@ interface Props {
   tripId: string
   travelers: Traveler[]
   onSelectionsChange: (cityId: string, attractionIds: string[], restaurantIds: string[]) => void
-  onGenerateItinerary: (cityId: string) => void
-  isGenerating: boolean
   isOffline?: boolean
 }
 
@@ -24,8 +22,6 @@ export default function CitySection({
   tripId,
   travelers,
   onSelectionsChange,
-  onGenerateItinerary,
-  isGenerating,
   isOffline = false
 }: Props) {
   const [attractions, setAttractions] = useState<SuggestionWithSelection[]>([])
@@ -368,39 +364,6 @@ export default function CitySection({
                 </div>
               </div>
 
-              {/* Generate Itinerary Button */}
-              <div className="sticky bottom-4 pt-4 bg-gradient-to-t from-white via-white to-transparent">
-                <button
-                  onClick={() => onGenerateItinerary(city.id)}
-                  disabled={isGenerating || selectedAttractionCount === 0 || isOffline}
-                  className={`w-full py-4 rounded-lg font-semibold text-lg transition-all ${
-                    selectedAttractionCount > 0 && !isOffline
-                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  } disabled:opacity-50`}
-                >
-                  {isGenerating ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Generating Itinerary...
-                    </span>
-                  ) : isOffline ? (
-                    'Connect to internet to generate itinerary'
-                  ) : selectedAttractionCount > 0 ? (
-                    `Generate Itinerary with ${selectedAttractionCount} Attraction${selectedAttractionCount > 1 ? 's' : ''}`
-                  ) : (
-                    'Select Attractions to Generate Itinerary'
-                  )}
-                </button>
-                {selectedAttractionCount > 0 && !isOffline && (
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    AI will create an optimal schedule and select restaurants for you
-                  </p>
-                )}
-              </div>
             </>
           )}
         </div>
