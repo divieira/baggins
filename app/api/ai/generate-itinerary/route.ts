@@ -1,10 +1,23 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { validateItinerary, type ItineraryBlock } from '@/lib/itinerary-validation'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 })
+
+interface TimeBlockInsert {
+  trip_id: string
+  city_id: string
+  plan_version_id: string
+  date: string
+  block_type: string
+  start_time: string
+  end_time: string
+  selected_attraction_id: string | null
+  selected_restaurant_id: string | null
+}
 
 /**
  * Strips markdown code fences from JSON response if present
@@ -20,7 +33,7 @@ function stripMarkdownCodeFences(text: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { tripId, cityId, selectedAttractionIds, selectedRestaurantIds } = await request.json()
+    const { tripId, cityId, selectedAttractionIds } = await request.json()
 
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -89,7 +102,7 @@ export async function POST(request: Request) {
         content: `You are a travel planning assistant. Create an optimal itinerary for ${city.name} based on the selected attractions and restaurants.
 
 City: ${city.name}
-Dates: ${city.start_date} to ${city.end_date}
+Dates: ${city.start_date} to ${city.end_date} (ONLY use dates within this range)
 Hotel location: ${hotel ? `${hotel.latitude}, ${hotel.longitude}` : 'Not specified'}
 
 Available time blocks:
@@ -124,11 +137,12 @@ Create an optimal schedule considering:
 2. Geographic proximity (minimize travel time between consecutive places)
 3. Appropriate meal times (restaurants for lunch around 12:00-13:30, dinner around 18:00-20:00)
 4. Duration of activities
-5. Spread activities across days evenly
-6. Each attraction should only be assigned to ONE time block
+5. CRITICAL: Spread activities EVENLY across ALL days - do NOT leave early days empty
+6. CRITICAL: Each attraction should ONLY be assigned to ONE time block (no duplicates)
 7. Select restaurants that are close to the preceding/following attractions
 8. Provide variety in cuisine types across different meals
 9. Consider price levels for a good mix
+10. CRITICAL: Start activities on the FIRST day (${city.start_date}), not later days
 
 Return ONLY a valid JSON object with this exact structure (no markdown, no code blocks):
 {
@@ -143,10 +157,13 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
   "summary": "Brief explanation of the itinerary logic"
 }
 
-IMPORTANT:
-- For morning, afternoon, evening blocks: use attractionId only
-- For lunch, dinner blocks: use restaurantId only
-- Don't assign the same place to multiple blocks
+CRITICAL REQUIREMENTS (will be validated):
+- ALL dates MUST be between ${city.start_date} and ${city.end_date} (inclusive)
+- For morning, afternoon, evening blocks: use attractionId ONLY (restaurantId must be null)
+- For lunch, dinner blocks: use restaurantId ONLY (attractionId must be null)
+- Each attraction/restaurant can ONLY appear ONCE in the entire itinerary
+- Distribute activities across ALL days evenly (don't skip the first days)
+- The first day (${city.start_date}) MUST have at least one activity
 - Leave blocks null if no suitable place is available`
       }]
     })
@@ -157,6 +174,22 @@ IMPORTANT:
     }
 
     const itineraryResponse = JSON.parse(stripMarkdownCodeFences(content.text))
+
+    // Validate the itinerary before saving
+    const validation = validateItinerary(
+      itineraryResponse.itinerary,
+      city.start_date,
+      city.end_date,
+      selectedAttractionIds || []
+    )
+
+    if (!validation.valid) {
+      console.error('Itinerary validation failed:', validation.error)
+      return NextResponse.json(
+        { error: validation.error },
+        { status: 500 }
+      )
+    }
 
     // Create new plan version
     const newVersionNumber = currentVersion ? currentVersion.version_number + 1 : 1
@@ -181,7 +214,7 @@ IMPORTANT:
     }
 
     // Create time blocks based on AI response
-    const timeBlocksToInsert = itineraryResponse.itinerary.map((block: any) => ({
+    const timeBlocksToInsert: TimeBlockInsert[] = itineraryResponse.itinerary.map((block: ItineraryBlock) => ({
       trip_id: tripId,
       city_id: cityId,
       plan_version_id: newVersion.id,
@@ -196,7 +229,7 @@ IMPORTANT:
     // Also add any time blocks that AI didn't return (empty blocks)
     timeBlocksTemplate.forEach(template => {
       const exists = timeBlocksToInsert.some(
-        (b: any) => b.date === template.date && b.block_type === template.blockType
+        b => b.date === template.date && b.block_type === template.blockType
       )
       if (!exists) {
         timeBlocksToInsert.push({
@@ -228,10 +261,11 @@ IMPORTANT:
       versionNumber: newVersion.version_number,
       summary: itineraryResponse.summary
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error generating itinerary:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Failed to generate itinerary'
     return NextResponse.json(
-      { error: error.message || 'Failed to generate itinerary' },
+      { error: errorMessage },
       { status: 500 }
     )
   }
