@@ -67,8 +67,7 @@ export async function POST(request: Request) {
         { date: dateStr, blockType: 'morning', startTime: '09:00', endTime: '12:00' },
         { date: dateStr, blockType: 'lunch', startTime: '12:00', endTime: '13:30' },
         { date: dateStr, blockType: 'afternoon', startTime: '13:30', endTime: '17:00' },
-        { date: dateStr, blockType: 'dinner', startTime: '18:00', endTime: '20:00' },
-        { date: dateStr, blockType: 'evening', startTime: '20:00', endTime: '23:00' }
+        { date: dateStr, blockType: 'dinner', startTime: '18:00', endTime: '20:00' }
       )
     }
 

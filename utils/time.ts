@@ -29,7 +29,7 @@ export function formatTime(time: string): string {
  * Get default time blocks for a day
  */
 export interface DefaultTimeBlock {
-  type: 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'evening'
+  type: 'morning' | 'lunch' | 'afternoon' | 'dinner'
   startTime: string
   endTime: string
   label: string
@@ -60,12 +60,6 @@ export function getDefaultTimeBlocks(): DefaultTimeBlock[] {
       startTime: '18:00',
       endTime: '20:00',
       label: 'Dinner',
-    },
-    {
-      type: 'evening',
-      startTime: '20:00',
-      endTime: '23:00',
-      label: 'Evening Activity',
     },
   ]
 }

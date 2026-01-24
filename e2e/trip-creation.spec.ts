@@ -69,13 +69,14 @@ test.describe('Trip Creation', () => {
       }
     });
 
-    test('should have form elements for trip creation', async ({ page }) => {
+    test('should have AI trip creation elements', async ({ page }) => {
       await page.goto('/dashboard/trips/new');
       const url = page.url();
       if (url.includes('/trips/new')) {
-        // Look for any input elements that might be part of the form
-        const hasInputs = await page.locator('input').count() > 0;
-        expect(hasInputs || url === '/').toBeTruthy();
+        // Look for AI creation elements (textarea and Create Trip button)
+        const hasTextarea = await page.locator('textarea').count() > 0;
+        const hasCreateButton = await page.getByRole('button', { name: /create trip/i }).count() > 0;
+        expect(hasTextarea || hasCreateButton || url === '/').toBeTruthy();
       }
     });
   });

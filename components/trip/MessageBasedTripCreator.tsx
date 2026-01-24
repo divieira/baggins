@@ -102,25 +102,34 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="message" className="block text-sm font-medium text-gray-200 mb-2">
-            {tripId ? 'Update Trip Details' : 'Describe Your Trip'}
+          <label htmlFor="message" className="block text-sm font-medium text-stone-600 mb-3">
+            {tripId ? 'Update Trip Details' : 'Describe your trip'}
           </label>
-          <textarea
-            id="message"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Example: I want to go to Paris from March 15-20, 2026 with my wife Sarah and our two kids Tommy (8) and Emma (5). We're flying Air France AF123 departing 10am from JFK."
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            rows={4}
-            disabled={loading}
-          />
+          <div className="relative">
+            <textarea
+              id="message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="I want to explore Chile for a week with my family. We love hiking, great food, and maybe visit a volcano..."
+              className="w-full bg-stone-50 border-2 border-stone-100 focus:border-orange-300 focus:bg-white rounded-2xl p-4 min-h-[140px] text-stone-700 placeholder-stone-400 outline-none transition-all resize-none"
+              disabled={loading}
+            />
+            <div className="absolute bottom-3 right-3 flex gap-2">
+              <button type="button" className="w-10 h-10 bg-stone-100 hover:bg-stone-200 rounded-xl flex items-center justify-center transition-colors">
+                <span className="text-lg">🎤</span>
+              </button>
+              <button type="button" className="w-10 h-10 bg-stone-100 hover:bg-stone-200 rounded-xl flex items-center justify-center transition-colors">
+                <span className="text-lg">📎</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          <div className="bg-rose-50 border-2 border-rose-200 text-rose-700 px-4 py-3 rounded-2xl">
             {error}
           </div>
         )}
@@ -128,38 +137,41 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
         <button
           type="submit"
           disabled={loading || !message.trim()}
-          className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          className="w-full bg-gradient-to-r from-orange-400 to-rose-400 hover:from-orange-500 hover:to-rose-500 text-white font-semibold py-4 rounded-2xl shadow-lg shadow-orange-200 transition-all hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Processing...' : tripId ? 'Update Trip' : 'Create Trip'}
+          <span>{loading ? 'Creating your adventure...' : tripId ? 'Update Trip' : 'Create Trip'}</span>
+          <span>→</span>
         </button>
       </form>
 
       {tripDetails && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6 space-y-4 animate-fade-in">
-          <div className="flex items-center gap-2 text-green-700 font-medium">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            {tripId ? 'Trip Updated!' : 'Trip Created!'}
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-3xl p-6 space-y-4">
+          <div className="flex items-center gap-2 text-emerald-700 font-semibold">
+            <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            {tripId ? 'Trip Updated!' : 'Adventure Created! 🎒'}
           </div>
 
           <div className="space-y-3 text-sm">
             <div>
-              <div className="font-semibold text-gray-900">Destination</div>
-              <div className="text-gray-700">{tripDetails.trip.destination}</div>
+              <div className="font-semibold text-stone-800">Destination</div>
+              <div className="text-stone-600">{tripDetails.trip.destination}</div>
             </div>
 
             <div>
-              <div className="font-semibold text-gray-900">Dates</div>
-              <div className="text-gray-700">
+              <div className="font-semibold text-stone-800">Dates</div>
+              <div className="text-stone-600">
                 {formatDate(tripDetails.trip.start_date)} - {formatDate(tripDetails.trip.end_date)}
               </div>
             </div>
 
             {tripDetails.travelers.length > 0 && (
               <div>
-                <div className="font-semibold text-gray-900">Travelers</div>
-                <div className="text-gray-700">
+                <div className="font-semibold text-stone-800">Travelers</div>
+                <div className="text-stone-600">
                   {tripDetails.travelers.map((t, i) => (
                     <div key={i}>
                       {t.name}{t.age ? ` (${t.age})` : ''}
@@ -171,8 +183,8 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
 
             {tripDetails.flights.length > 0 && (
               <div>
-                <div className="font-semibold text-gray-900">Flights</div>
-                <div className="text-gray-700">
+                <div className="font-semibold text-stone-800">Flights</div>
+                <div className="text-stone-600">
                   {tripDetails.flights.map((f, i) => (
                     <div key={i}>
                       {f.airline} {f.flight_number}: {f.from_location} → {f.to_location}
@@ -184,8 +196,8 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
 
             {tripDetails.hotels.length > 0 && (
               <div>
-                <div className="font-semibold text-gray-900">Hotels</div>
-                <div className="text-gray-700">
+                <div className="font-semibold text-stone-800">Hotels</div>
+                <div className="text-stone-600">
                   {tripDetails.hotels.map((h, i) => (
                     <div key={i}>
                       {h.name} ({formatDate(h.check_in_date)} - {formatDate(h.check_out_date)})
@@ -197,8 +209,9 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
           </div>
 
           {!tripId && (
-            <div className="text-sm text-gray-600 italic">
-              Redirecting to your trip...
+            <div className="text-sm text-stone-500 italic flex items-center gap-2">
+              <span className="animate-spin">⏳</span>
+              Preparing your journey...
             </div>
           )}
         </div>

@@ -26,7 +26,7 @@ export type TimeBlock = Database['public']['Tables']['time_blocks']['Row']
 export type TimeBlockInsert = Database['public']['Tables']['time_blocks']['Insert']
 export type TimeBlockUpdate = Database['public']['Tables']['time_blocks']['Update']
 
-export type BlockType = 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'evening'
+export type BlockType = 'morning' | 'lunch' | 'afternoon' | 'dinner'
 
 // Multi-city support types
 export interface TripCity {
