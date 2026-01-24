@@ -42,6 +42,7 @@ function SuggestionCard({
   isRestaurant,
   originLocation,
   loadingTravelTimes,
+  isSelected,
   onSelect
 }: {
   suggestion: SuggestionWithDistance
@@ -49,6 +50,7 @@ function SuggestionCard({
   isRestaurant: boolean
   originLocation: Location | null
   loadingTravelTimes: boolean
+  isSelected?: boolean
   onSelect: () => void
 }) {
   // Placeholder image when no image is available
@@ -58,9 +60,11 @@ function SuggestionCard({
 
   return (
     <div
-      className={`flex-shrink-0 snap-center bg-white rounded-xl shadow-md overflow-hidden border border-slate-200 ${
-        isRestaurant ? 'w-[85vw] max-w-[340px]' : 'w-[85vw] max-w-[340px]'
-      }`}
+      className={`flex-shrink-0 snap-center bg-white rounded-xl shadow-md overflow-hidden ${
+        isSelected
+          ? 'border-2 border-emerald-500 ring-2 ring-emerald-200'
+          : 'border border-slate-200'
+      } ${isRestaurant ? 'w-[85vw] max-w-[340px]' : 'w-[85vw] max-w-[340px]'}`}
     >
       {/* Photo */}
       <div
@@ -72,7 +76,12 @@ function SuggestionCard({
           alt={suggestion.name}
           className="w-full h-full object-cover cursor-pointer"
         />
-        {isBestMatch && (
+        {isSelected && (
+          <span className="absolute top-2 right-2 text-xs bg-emerald-500 text-white px-2 py-1 rounded-full font-medium shadow">
+            Selected ✓
+          </span>
+        )}
+        {!isSelected && isBestMatch && (
           <span className="absolute top-2 right-2 text-xs bg-emerald-500 text-white px-2 py-1 rounded-full font-medium shadow">
             Best match
           </span>
@@ -153,13 +162,15 @@ function SuggestionCard({
           </div>
         </div>
 
-        {/* Select Button */}
-        <button
-          onClick={onSelect}
-          className="mt-3 w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
-        >
-          Select
-        </button>
+        {/* Select Button - Hidden when selected */}
+        {!isSelected && (
+          <button
+            onClick={onSelect}
+            className="mt-3 w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            Select
+          </button>
+        )}
       </div>
     </div>
   )
@@ -418,72 +429,72 @@ export default function TimeBlockCard({
             {formatTime(block.start_time)} - {formatTime(block.end_time)}
           </span>
         </div>
-        {selectedItem && (
-          <button
-            onClick={handleClear}
-            className="text-xs text-rose-600 hover:text-rose-700"
-          >
-            Clear
-          </button>
-        )}
       </div>
 
-      {/* Selected Item Display */}
-      {selectedItem && (
-        <div className="p-3 bg-emerald-50 border-l-4 border-emerald-500">
-          <div className="flex gap-3">
-            <img
-              src={selectedItem.image_url || (isRestaurantBlock
-                ? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=80&h=80&fit=crop'
-                : 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=80&h=80&fit=crop')}
-              alt={selectedItem.name}
-              className="w-16 h-16 object-cover rounded flex-shrink-0"
-            />
-            <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-sm text-slate-800">{selectedItem.name}</h4>
-              <p className="text-xs text-slate-600 line-clamp-1">{selectedItem.description}</p>
-              {hotel && (
-                <p className="text-xs text-slate-500 mt-1">
-                  {formatDistance(
-                    calculateDistance(
-                      previousSelection?.latitude || hotel.latitude || 0,
-                      previousSelection?.longitude || hotel.longitude || 0,
-                      selectedItem.latitude,
-                      selectedItem.longitude
-                    )
-                  )} from {previousSelection?.name || hotel.name}
-                </p>
-              )}
+      {/* Horizontal Scrolling Suggestions - Always visible, selected item shown as first card */}
+      {(() => {
+        // Prepare display list: selected item first (if any), then suggestions
+        const displayItems = selectedItem
+          ? [
+              {
+                id: selectedItem.id,
+                name: selectedItem.name,
+                description: selectedItem.description,
+                image_url: selectedItem.image_url,
+                highlights: selectedItem.highlights,
+                distance_km: hotel ? calculateDistance(
+                  previousSelection?.latitude || hotel.latitude || 0,
+                  previousSelection?.longitude || hotel.longitude || 0,
+                  selectedItem.latitude,
+                  selectedItem.longitude
+                ) : 0,
+                travel_time_minutes: 0,
+                travel_time_text: null,
+                origin_name: previousSelection?.name || hotel?.name || 'hotel',
+                opening_time: selectedItem.opening_time,
+                closing_time: selectedItem.closing_time,
+                type: isRestaurantBlock ? ('restaurant' as const) : ('attraction' as const),
+                latitude: selectedItem.latitude,
+                longitude: selectedItem.longitude,
+                category: 'category' in selectedItem ? selectedItem.category : undefined,
+                cuisine_type: 'cuisine_type' in selectedItem ? selectedItem.cuisine_type : undefined,
+                price_level: 'price_level' in selectedItem ? selectedItem.price_level : undefined,
+              },
+              ...suggestions
+            ]
+          : suggestions
+
+        return displayItems.length > 0 ? (
+          <div className="p-3 bg-slate-50">
+            <div
+              className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-3 px-3"
+              style={{ scrollbarWidth: 'thin' }}
+            >
+              {displayItems.map((item, index) => {
+                const isSelectedCard = selectedItem && index === 0
+                const isBest = !isSelectedCard && index === (selectedItem ? 1 : 0)
+
+                return (
+                  <SuggestionCard
+                    key={item.id}
+                    suggestion={item}
+                    isBestMatch={isBest}
+                    isRestaurant={isRestaurantBlock}
+                    originLocation={getOriginLocation()}
+                    loadingTravelTimes={loadingTravelTimes && index < 5}
+                    isSelected={isSelectedCard}
+                    onSelect={() => handleSelect(item)}
+                  />
+                )
+              })}
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Horizontal Scrolling Suggestions - Hidden when item is selected */}
-      {!selectedItem && suggestions.length > 0 ? (
-        <div className="p-3 bg-slate-50">
-          <div
-            className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-3 px-3"
-            style={{ scrollbarWidth: 'thin' }}
-          >
-            {suggestions.map((suggestion, index) => (
-              <SuggestionCard
-                key={suggestion.id}
-                suggestion={suggestion}
-                isBestMatch={index === 0}
-                isRestaurant={isRestaurantBlock}
-                originLocation={getOriginLocation()}
-                loadingTravelTimes={loadingTravelTimes && index < 5}
-                onSelect={() => handleSelect(suggestion)}
-              />
-            ))}
+        ) : (
+          <div className="p-4 text-center text-sm text-slate-600">
+            No suggestions available
           </div>
-        </div>
-      ) : !selectedItem ? (
-        <div className="p-4 text-center text-sm text-slate-600">
-          No suggestions available
-        </div>
-      ) : null}
+        )
+      })()}
     </div>
   )
 }
