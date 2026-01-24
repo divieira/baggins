@@ -425,9 +425,11 @@ export default function TimeBlockCard({
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3 flex justify-between items-center border-b border-stone-100">
         <div>
           <span className="font-semibold text-sm text-stone-800">{getBlockLabel()}</span>
-          <span className="text-xs text-stone-500 ml-2">
-            {formatTime(block.start_time)} - {formatTime(block.end_time)}
-          </span>
+          {block.start_time && block.end_time && (
+            <span className="text-xs text-stone-500 ml-2">
+              {formatTime(block.start_time)} - {formatTime(block.end_time)}
+            </span>
+          )}
         </div>
       </div>
 

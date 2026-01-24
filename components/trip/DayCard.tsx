@@ -1,10 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import type { Flight, Hotel, TimeBlock, Attraction, Restaurant } from '@/types'
 import { formatTime } from '@/utils/time'
+import {
+  calculateFirstActivityStart,
+  calculateActivityEnd,
+  calculateNextActivityStart,
+  getDefaultDuration,
+  normalizeTimeString,
+  type TimelineEntry
+} from '@/utils/timeline'
+import { calculateDistance, estimateTravelTime } from '@/utils/distance'
 import TimeBlockCard from './TimeBlockCard'
 
 interface Props {
@@ -53,6 +62,124 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
     return restaurants.filter(r => !selectedIds.includes(r.id))
   }
 
+  // Build timeline with dynamic times
+  const timeline = useMemo<TimelineEntry[]>(() => {
+    const entries: TimelineEntry[] = []
+
+    // Add flights
+    flights.forEach(flight => {
+      entries.push({
+        id: `flight-${flight.id}`,
+        type: 'flight',
+        startTime: normalizeTimeString(flight.departure_time),
+        endTime: normalizeTimeString(flight.arrival_time),
+        title: `${flight.airline} ${flight.flight_number}`,
+        subtitle: `${flight.departure_airport} → ${flight.arrival_airport}`,
+        data: flight
+      })
+    })
+
+    // Add hotel check-in (if hotel exists and has check-in date matching this day)
+    if (hotel && hotel.check_in_date) {
+      try {
+        const hotelCheckinDate = new Date(hotel.check_in_date)
+        const currentDate = new Date(date)
+
+        if (hotelCheckinDate.toDateString() === currentDate.toDateString()) {
+          entries.push({
+            id: `hotel-${hotel.id}`,
+            type: 'hotel_checkin',
+            startTime: '15:00', // Standard hotel check-in time
+            endTime: '15:30',   // Allow 30 min for check-in
+            title: `Check in at ${hotel.name}`,
+            subtitle: hotel.address,
+            data: hotel
+          })
+        }
+      } catch (error) {
+        console.error('Error parsing hotel check-in date:', error)
+      }
+    }
+
+    // Sort by start time so far
+    entries.sort((a, b) => a.startTime.localeCompare(b.startTime))
+
+    // Calculate first activity start time
+    const lastFlightArrival = flights.length > 0 ? normalizeTimeString(flights[flights.length - 1].arrival_time) : null
+    let currentTime = calculateFirstActivityStart(lastFlightArrival, '15:00')
+
+    // Add time blocks as activities with calculated times
+    let prevSelectedItem: Attraction | Restaurant | null = null
+
+    blocks.forEach((block, index) => {
+      const prevBlock = index > 0 ? blocks[index - 1] : null
+
+      // Get selected item
+      let selectedItem: Attraction | Restaurant | null = null
+      let activityType: 'activity' | 'restaurant' = 'activity'
+
+      if (block.selected_attraction_id) {
+        selectedItem = attractions.find(a => a.id === block.selected_attraction_id) || null
+        activityType = 'activity'
+      } else if (block.selected_restaurant_id) {
+        selectedItem = restaurants.find(r => r.id === block.selected_restaurant_id) || null
+        activityType = 'restaurant'
+      }
+
+      if (selectedItem) {
+        // Calculate travel time from previous location
+        let travelTime = 0
+
+        if (prevSelectedItem) {
+          // Calculate distance between previous and current activity
+          const distance = calculateDistance(
+            prevSelectedItem.latitude,
+            prevSelectedItem.longitude,
+            selectedItem.latitude,
+            selectedItem.longitude
+          )
+          travelTime = estimateTravelTime(distance)
+        } else if (hotel && index === 0) {
+          // First activity - calculate from hotel
+          const distance = calculateDistance(
+            hotel.latitude || 0,
+            hotel.longitude || 0,
+            selectedItem.latitude,
+            selectedItem.longitude
+          )
+          travelTime = estimateTravelTime(distance)
+        }
+
+        // Add travel time to current time
+        if (travelTime > 0) {
+          currentTime = calculateNextActivityStart(currentTime, travelTime)
+        }
+
+        const duration = ('duration_minutes' in selectedItem ? selectedItem.duration_minutes : null) || getDefaultDuration(activityType)
+        const endTime = calculateActivityEnd(currentTime, duration)
+
+        entries.push({
+          id: block.id,
+          type: activityType,
+          startTime: currentTime,
+          endTime: endTime,
+          title: selectedItem.name,
+          subtitle: selectedItem.description,
+          travelTimeFromPrevious: travelTime > 0 ? travelTime : undefined,
+          data: selectedItem
+        })
+
+        currentTime = endTime
+        prevSelectedItem = selectedItem
+      }
+    })
+
+    // Sort all entries by start time
+    entries.sort((a, b) => a.startTime.localeCompare(b.startTime))
+
+    return entries
+  }, [flights, hotel, blocks, attractions, restaurants, date])
+
   return (
     <div className="bg-white rounded-3xl shadow-lg overflow-hidden border border-stone-200">
       {/* Day Header */}
@@ -62,50 +189,92 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
         </h3>
       </div>
 
-      <div className="p-4 space-y-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-        {/* Flights */}
-        {flights.length > 0 && (
-          <div className="border-l-4 border-sky-400 pl-4 py-3 bg-sky-50 rounded-xl">
-            {flights.map(flight => (
-              <div key={flight.id} className="mb-2 last:mb-0">
-                <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
-                  <span>✈️</span>
-                  <span>
-                    {flight.airline} {flight.flight_number}
-                  </span>
+      <div className="p-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        {/* Timeline with flights, hotel, and activities integrated */}
+        <div className="space-y-3">
+          {timeline.map((entry, index) => {
+            // For flight and hotel entries, show as info cards
+            if (entry.type === 'flight') {
+              return (
+                <div key={entry.id} className="relative">
+                  <div className="border-l-4 border-sky-400 pl-4 py-3 bg-sky-50 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
+                        <span>✈️</span>
+                        <span>{entry.title}</span>
+                      </div>
+                      <div className="text-xs text-stone-500 font-medium">
+                        {formatTime(entry.startTime)} → {formatTime(entry.endTime)}
+                      </div>
+                    </div>
+                    {entry.subtitle && (
+                      <div className="text-sm text-stone-600 mt-1">{entry.subtitle}</div>
+                    )}
+                  </div>
+                  {/* Timeline connector */}
+                  {index < timeline.length - 1 && (
+                    <div className="absolute left-[-2px] top-full w-1 h-3 bg-stone-200" />
+                  )}
                 </div>
-                <div className="text-sm text-stone-600">
-                  {flight.departure_airport} ({formatTime(flight.departure_time)}) → {flight.arrival_airport} ({formatTime(flight.arrival_time)})
+              )
+            }
+
+            if (entry.type === 'hotel_checkin') {
+              return (
+                <div key={entry.id} className="relative">
+                  <div className="border-l-4 border-amber-400 pl-4 py-3 bg-amber-50 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
+                        <span>🏨</span>
+                        <span>{entry.title}</span>
+                      </div>
+                      <div className="text-xs text-stone-500 font-medium">
+                        {formatTime(entry.startTime)}
+                      </div>
+                    </div>
+                    {entry.subtitle && (
+                      <div className="text-sm text-stone-600 mt-1">{entry.subtitle}</div>
+                    )}
+                  </div>
+                  {/* Timeline connector */}
+                  {index < timeline.length - 1 && (
+                    <div className="absolute left-[-2px] top-full w-1 h-3 bg-stone-200" />
+                  )}
                 </div>
+              )
+            }
+
+            // For activity/restaurant entries, show TimeBlockCard with calculated times
+            const block = blocks.find(b => b.id === entry.id)
+            if (!block) return null
+
+            return (
+              <div key={entry.id} className="space-y-2">
+                {entry.travelTimeFromPrevious && entry.travelTimeFromPrevious > 0 && (
+                  <div className="flex items-center gap-2 text-xs text-stone-500 ml-4 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                      <span className="italic">{entry.travelTimeFromPrevious} min travel</span>
+                    </div>
+                  </div>
+                )}
+                <TimeBlockCard
+                  block={{
+                    ...block,
+                    start_time: entry.startTime,
+                    end_time: entry.endTime
+                  }}
+                  availableAttractions={getAvailableAttractions(block)}
+                  availableRestaurants={getAvailableRestaurants(block)}
+                  hotel={hotel}
+                  previousBlock={index > 0 ? blocks[index - 1] : null}
+                  onUpdate={onBlockUpdate}
+                />
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Hotel */}
-        {hotel && (
-          <div className="border-l-4 border-amber-400 pl-4 py-3 bg-amber-50 rounded-xl">
-            <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
-              <span>🏨</span>
-              <span>{hotel.name}</span>
-            </div>
-            <div className="text-sm text-stone-600">{hotel.address}</div>
-          </div>
-        )}
-
-        {/* Time Blocks */}
-        <div className="space-y-3 mt-4">
-          {blocks.map((block, index) => (
-            <TimeBlockCard
-              key={block.id}
-              block={block}
-              availableAttractions={getAvailableAttractions(block)}
-              availableRestaurants={getAvailableRestaurants(block)}
-              hotel={hotel}
-              previousBlock={index > 0 ? blocks[index - 1] : null}
-              onUpdate={onBlockUpdate}
-            />
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>
