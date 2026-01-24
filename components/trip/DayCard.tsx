@@ -10,6 +10,7 @@ import {
   calculateActivityEnd,
   calculateNextActivityStart,
   getDefaultDuration,
+  normalizeTimeString,
   type TimelineEntry
 } from '@/utils/timeline'
 import { calculateDistance, estimateTravelTime } from '@/utils/distance'
@@ -70,8 +71,8 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
       entries.push({
         id: `flight-${flight.id}`,
         type: 'flight',
-        startTime: flight.departure_time,
-        endTime: flight.arrival_time,
+        startTime: normalizeTimeString(flight.departure_time),
+        endTime: normalizeTimeString(flight.arrival_time),
         title: `${flight.airline} ${flight.flight_number}`,
         subtitle: `${flight.departure_airport} → ${flight.arrival_airport}`,
         data: flight
@@ -79,20 +80,24 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
     })
 
     // Add hotel check-in (if hotel exists and has check-in date matching this day)
-    if (hotel) {
-      const hotelCheckinDate = new Date(hotel.check_in_date)
-      const currentDate = new Date(date)
+    if (hotel && hotel.check_in_date) {
+      try {
+        const hotelCheckinDate = new Date(hotel.check_in_date)
+        const currentDate = new Date(date)
 
-      if (hotelCheckinDate.toDateString() === currentDate.toDateString()) {
-        entries.push({
-          id: `hotel-${hotel.id}`,
-          type: 'hotel_checkin',
-          startTime: '15:00', // Standard hotel check-in time
-          endTime: '15:30',   // Allow 30 min for check-in
-          title: `Check in at ${hotel.name}`,
-          subtitle: hotel.address,
-          data: hotel
-        })
+        if (hotelCheckinDate.toDateString() === currentDate.toDateString()) {
+          entries.push({
+            id: `hotel-${hotel.id}`,
+            type: 'hotel_checkin',
+            startTime: '15:00', // Standard hotel check-in time
+            endTime: '15:30',   // Allow 30 min for check-in
+            title: `Check in at ${hotel.name}`,
+            subtitle: hotel.address,
+            data: hotel
+          })
+        }
+      } catch (error) {
+        console.error('Error parsing hotel check-in date:', error)
       }
     }
 
@@ -100,7 +105,7 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
     entries.sort((a, b) => a.startTime.localeCompare(b.startTime))
 
     // Calculate first activity start time
-    const lastFlightArrival = flights.length > 0 ? flights[flights.length - 1].arrival_time : null
+    const lastFlightArrival = flights.length > 0 ? normalizeTimeString(flights[flights.length - 1].arrival_time) : null
     let currentTime = calculateFirstActivityStart(lastFlightArrival, '15:00')
 
     // Add time blocks as activities with calculated times
