@@ -54,27 +54,27 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden">
+    <div className="bg-white rounded-3xl shadow-lg overflow-hidden border border-stone-200">
       {/* Day Header */}
-      <div className="bg-teal-600 text-white p-4">
-        <h3 className="text-xl font-semibold">
+      <div className="bg-gradient-to-r from-orange-400 to-rose-400 text-white p-4">
+        <h3 className="text-xl font-semibold" style={{ fontFamily: "'Playfair Display', serif" }}>
           {format(date, 'EEEE, MMMM d')}
         </h3>
       </div>
 
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
         {/* Flights */}
         {flights.length > 0 && (
-          <div className="border-l-4 border-sky-500 pl-4 py-2 bg-sky-50 rounded">
+          <div className="border-l-4 border-sky-400 pl-4 py-3 bg-sky-50 rounded-xl">
             {flights.map(flight => (
               <div key={flight.id} className="mb-2 last:mb-0">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
                   <span>✈️</span>
                   <span>
                     {flight.airline} {flight.flight_number}
                   </span>
                 </div>
-                <div className="text-sm text-slate-600">
+                <div className="text-sm text-stone-600">
                   {flight.departure_airport} ({formatTime(flight.departure_time)}) → {flight.arrival_airport} ({formatTime(flight.arrival_time)})
                 </div>
               </div>
@@ -84,12 +84,12 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
 
         {/* Hotel */}
         {hotel && (
-          <div className="border-l-4 border-amber-500 pl-4 py-2 bg-amber-50 rounded">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <div className="border-l-4 border-amber-400 pl-4 py-3 bg-amber-50 rounded-xl">
+            <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
               <span>🏨</span>
               <span>{hotel.name}</span>
             </div>
-            <div className="text-sm text-slate-600">{hotel.address}</div>
+            <div className="text-sm text-stone-600">{hotel.address}</div>
           </div>
         )}
 
