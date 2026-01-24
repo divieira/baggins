@@ -12,6 +12,7 @@ import {
   getDefaultDuration,
   type TimelineEntry
 } from '@/utils/timeline'
+import { calculateDistance, estimateTravelTime } from '@/utils/distance'
 import TimeBlockCard from './TimeBlockCard'
 
 interface Props {
@@ -103,6 +104,8 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
     let currentTime = calculateFirstActivityStart(lastFlightArrival, '15:00')
 
     // Add time blocks as activities with calculated times
+    let prevSelectedItem: Attraction | Restaurant | null = null
+
     blocks.forEach((block, index) => {
       const prevBlock = index > 0 ? blocks[index - 1] : null
 
@@ -119,11 +122,31 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
       }
 
       if (selectedItem) {
-        // Calculate travel time from previous (simplified for now - will be enhanced)
-        const travelTime = 15 // Default 15 min travel time
+        // Calculate travel time from previous location
+        let travelTime = 0
 
-        // If not first activity, add travel time
-        if (index > 0) {
+        if (prevSelectedItem) {
+          // Calculate distance between previous and current activity
+          const distance = calculateDistance(
+            prevSelectedItem.latitude,
+            prevSelectedItem.longitude,
+            selectedItem.latitude,
+            selectedItem.longitude
+          )
+          travelTime = estimateTravelTime(distance)
+        } else if (hotel && index === 0) {
+          // First activity - calculate from hotel
+          const distance = calculateDistance(
+            hotel.latitude || 0,
+            hotel.longitude || 0,
+            selectedItem.latitude,
+            selectedItem.longitude
+          )
+          travelTime = estimateTravelTime(distance)
+        }
+
+        // Add travel time to current time
+        if (travelTime > 0) {
           currentTime = calculateNextActivityStart(currentTime, travelTime)
         }
 
@@ -137,11 +160,12 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
           endTime: endTime,
           title: selectedItem.name,
           subtitle: selectedItem.description,
-          travelTimeFromPrevious: index > 0 ? travelTime : undefined,
+          travelTimeFromPrevious: travelTime > 0 ? travelTime : undefined,
           data: selectedItem
         })
 
         currentTime = endTime
+        prevSelectedItem = selectedItem
       }
     })
 
@@ -167,18 +191,24 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
             // For flight and hotel entries, show as info cards
             if (entry.type === 'flight') {
               return (
-                <div key={entry.id} className="border-l-4 border-sky-400 pl-4 py-3 bg-sky-50 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
-                      <span>✈️</span>
-                      <span>{entry.title}</span>
+                <div key={entry.id} className="relative">
+                  <div className="border-l-4 border-sky-400 pl-4 py-3 bg-sky-50 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
+                        <span>✈️</span>
+                        <span>{entry.title}</span>
+                      </div>
+                      <div className="text-xs text-stone-500 font-medium">
+                        {formatTime(entry.startTime)} → {formatTime(entry.endTime)}
+                      </div>
                     </div>
-                    <div className="text-xs text-stone-500">
-                      {formatTime(entry.startTime)} → {formatTime(entry.endTime)}
-                    </div>
+                    {entry.subtitle && (
+                      <div className="text-sm text-stone-600 mt-1">{entry.subtitle}</div>
+                    )}
                   </div>
-                  {entry.subtitle && (
-                    <div className="text-sm text-stone-600 mt-1">{entry.subtitle}</div>
+                  {/* Timeline connector */}
+                  {index < timeline.length - 1 && (
+                    <div className="absolute left-[-2px] top-full w-1 h-3 bg-stone-200" />
                   )}
                 </div>
               )
@@ -186,18 +216,24 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
 
             if (entry.type === 'hotel_checkin') {
               return (
-                <div key={entry.id} className="border-l-4 border-amber-400 pl-4 py-3 bg-amber-50 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
-                      <span>🏨</span>
-                      <span>{entry.title}</span>
+                <div key={entry.id} className="relative">
+                  <div className="border-l-4 border-amber-400 pl-4 py-3 bg-amber-50 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
+                        <span>🏨</span>
+                        <span>{entry.title}</span>
+                      </div>
+                      <div className="text-xs text-stone-500 font-medium">
+                        {formatTime(entry.startTime)}
+                      </div>
                     </div>
-                    <div className="text-xs text-stone-500">
-                      {formatTime(entry.startTime)}
-                    </div>
+                    {entry.subtitle && (
+                      <div className="text-sm text-stone-600 mt-1">{entry.subtitle}</div>
+                    )}
                   </div>
-                  {entry.subtitle && (
-                    <div className="text-sm text-stone-600 mt-1">{entry.subtitle}</div>
+                  {/* Timeline connector */}
+                  {index < timeline.length - 1 && (
+                    <div className="absolute left-[-2px] top-full w-1 h-3 bg-stone-200" />
                   )}
                 </div>
               )
@@ -209,12 +245,14 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
 
             return (
               <div key={entry.id} className="space-y-2">
-                {entry.travelTimeFromPrevious && (
-                  <div className="flex items-center gap-2 text-xs text-stone-400 ml-4">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>{entry.travelTimeFromPrevious} min travel time</span>
+                {entry.travelTimeFromPrevious && entry.travelTimeFromPrevious > 0 && (
+                  <div className="flex items-center gap-2 text-xs text-stone-500 ml-4 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                      <span className="italic">{entry.travelTimeFromPrevious} min travel</span>
+                    </div>
                   </div>
                 )}
                 <TimeBlockCard
