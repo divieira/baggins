@@ -51,8 +51,6 @@ function SuggestionCard({
   loadingTravelTimes: boolean
   onSelect: () => void
 }) {
-  const [detailsExpanded, setDetailsExpanded] = useState(false)
-
   // Placeholder image when no image is available
   const placeholderImage = isRestaurant
     ? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&h=300&fit=crop'
@@ -94,83 +92,66 @@ function SuggestionCard({
           {suggestion.description}
         </p>
 
-        {/* Collapsible Details */}
-        <button
-          onClick={() => setDetailsExpanded(!detailsExpanded)}
-          className="text-xs text-teal-600 hover:text-teal-700 mt-2 flex items-center gap-1"
-        >
-          {detailsExpanded ? 'Hide details' : 'Show details'}
-          <svg
-            className={`w-3 h-3 transition-transform ${detailsExpanded ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
+        {/* Details - Always visible */}
+        <div className="mt-2 pt-2 border-t border-slate-100 space-y-2">
+          {/* Highlights/Tags */}
+          {suggestion.highlights.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {suggestion.highlights.map((highlight, i) => (
+                <span key={i} className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                  {highlight}
+                </span>
+              ))}
+            </div>
+          )}
 
-        {detailsExpanded && (
-          <div className="mt-2 pt-2 border-t border-slate-100 space-y-2">
-            {/* Highlights/Tags */}
-            {suggestion.highlights.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {suggestion.highlights.map((highlight, i) => (
-                  <span key={i} className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
-                    {highlight}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Distance & Travel Time */}
-            <div className="text-xs text-slate-600 space-y-1">
+          {/* Distance & Travel Time */}
+          <div className="text-xs text-slate-600 space-y-1">
+            <p>
+              {formatDistance(suggestion.distance_km)} from {suggestion.origin_name} •{' '}
+              {suggestion.travel_time_text || formatTravelTime(suggestion.travel_time_minutes)}
+              {loadingTravelTimes && !suggestion.travel_time_text && ' (updating...)'}
+            </p>
+            {suggestion.opening_time && suggestion.closing_time && (
               <p>
-                {formatDistance(suggestion.distance_km)} from {suggestion.origin_name} •{' '}
-                {suggestion.travel_time_text || formatTravelTime(suggestion.travel_time_minutes)}
-                {loadingTravelTimes && !suggestion.travel_time_text && ' (updating...)'}
+                Open {formatTime(suggestion.opening_time)} - {formatTime(suggestion.closing_time)}
               </p>
-              {suggestion.opening_time && suggestion.closing_time && (
-                <p>
-                  Open {formatTime(suggestion.opening_time)} - {formatTime(suggestion.closing_time)}
-                </p>
-              )}
-            </div>
-
-            {/* Map Links */}
-            <div className="flex gap-2 text-xs">
-              <a
-                href={generateMapsSearchLink(
-                  { latitude: suggestion.latitude, longitude: suggestion.longitude },
-                  suggestion.name
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-teal-600 hover:text-teal-700 underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                View on Maps
-              </a>
-              {originLocation && (
-                <>
-                  <span className="text-slate-400">•</span>
-                  <a
-                    href={generateMapsDirectionsLink(
-                      originLocation,
-                      { latitude: suggestion.latitude, longitude: suggestion.longitude }
-                    )}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-teal-600 hover:text-teal-700 underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Get Directions
-                  </a>
-                </>
-              )}
-            </div>
+            )}
           </div>
-        )}
+
+          {/* Map Links */}
+          <div className="flex gap-2 text-xs">
+            <a
+              href={generateMapsSearchLink(
+                { latitude: suggestion.latitude, longitude: suggestion.longitude },
+                suggestion.name
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-teal-600 hover:text-teal-700 underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View on Maps
+            </a>
+            {originLocation && (
+              <>
+                <span className="text-slate-400">•</span>
+                <a
+                  href={generateMapsDirectionsLink(
+                    originLocation,
+                    { latitude: suggestion.latitude, longitude: suggestion.longitude }
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-teal-600 hover:text-teal-700 underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Get Directions
+                </a>
+              </>
+            )}
+          </div>
+        </div>
 
         {/* Select Button */}
         <button
