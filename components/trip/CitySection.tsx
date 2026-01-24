@@ -130,7 +130,7 @@ export default function CitySection({
     } finally {
       setLoading(false)
     }
-  }, [city.id, isOffline, supabase, onSelectionsChange])
+  }, [city.id, isOffline, supabase])
 
   useEffect(() => {
     loadCityData()

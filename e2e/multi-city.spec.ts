@@ -222,6 +222,66 @@ test.describe('Multi-City Trip Functionality', () => {
         test.skip();
       }
     });
+
+    test('should not flash loading state when clicking attractions', async ({ page }) => {
+      await page.goto('/dashboard');
+
+      const tripLinks = page.locator('a[href*="/dashboard/trips/"]');
+      const tripLinkCount = await tripLinks.count();
+
+      let foundTripLink = false;
+      for (let i = 0; i < tripLinkCount; i++) {
+        const href = await tripLinks.nth(i).getAttribute('href');
+        if (href && !href.includes('/new')) {
+          await tripLinks.nth(i).click();
+          foundTripLink = true;
+          break;
+        }
+      }
+
+      if (foundTripLink) {
+        await page.waitForURL(/\/dashboard\/trips\/[a-f0-9-]+$/);
+
+        // Go to selection mode
+        const selectionButton = page.getByRole('button', { name: /select attractions/i });
+        if (await selectionButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+          await selectionButton.click();
+
+          // Wait for any attractions to load
+          const attractionCard = page.locator('[class*="border rounded-lg"][class*="cursor-pointer"]').first();
+          const hasAttractions = await attractionCard.isVisible({ timeout: 5000 }).catch(() => false);
+
+          if (hasAttractions) {
+            // Click on the first attraction
+            await attractionCard.click();
+
+            // The "Loading attractions..." text should NOT appear after clicking
+            const loadingText = page.getByText('Loading attractions...');
+
+            // Wait a moment to ensure any flash would have occurred
+            await page.waitForTimeout(500);
+
+            // Verify loading text is not visible
+            await expect(loadingText).not.toBeVisible();
+
+            // The attraction grid should still be visible
+            await expect(attractionCard).toBeVisible();
+
+            // Click the same attraction again (to deselect) and verify no loading flash
+            await attractionCard.click();
+            await page.waitForTimeout(500);
+            await expect(loadingText).not.toBeVisible();
+            await expect(attractionCard).toBeVisible();
+          } else {
+            console.log('No attractions found - skipping flash test');
+            test.skip();
+          }
+        }
+      } else {
+        console.log('No existing trips found - skipping flash test');
+        test.skip();
+      }
+    });
   });
 });
 
