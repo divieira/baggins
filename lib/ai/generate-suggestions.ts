@@ -46,6 +46,19 @@ export async function generateCitySuggestions({
   cityName,
   travelers = []
 }: GenerateSuggestionsParams): Promise<GenerateSuggestionsResult> {
+  // Validate required parameters
+  if (!cityId) {
+    throw new Error(`cityId is required but got: ${cityId}`)
+  }
+  if (!tripId) {
+    throw new Error(`tripId is required but got: ${tripId}`)
+  }
+  if (!cityName) {
+    throw new Error(`cityName is required but got: ${cityName}`)
+  }
+
+  console.log(`[generateCitySuggestions] Starting for city "${cityName}" (ID: ${cityId})`)
+
   // Build traveler context
   const travelerContext = travelers.length > 0
     ? `Travelers: ${travelers.map(t => `${t.name}${t.age ? ` (${t.age} years old)` : ''}`).join(', ')}`
@@ -176,13 +189,32 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
     }))
   )
 
+  // Validate all attractions have city_id before inserting
+  const invalidAttractions = attractionsToInsert.filter(a => !a.city_id)
+  if (invalidAttractions.length > 0) {
+    console.error(`[generateCitySuggestions] ERROR: ${invalidAttractions.length} attractions missing city_id!`)
+    console.error('Invalid attractions:', invalidAttractions.map(a => ({ name: a.name, city_id: a.city_id })))
+    throw new Error(`Cannot insert attractions without city_id`)
+  }
+
   const { data: insertedAttractions, error: attractionsError } = await supabase
     .from('attractions')
     .insert(attractionsToInsert)
     .select()
 
   if (attractionsError) {
-    console.error('Error inserting attractions:', attractionsError)
+    console.error('[generateCitySuggestions] Error inserting attractions:', attractionsError)
+    throw attractionsError
+  }
+
+  // Verify inserted attractions have correct city_id
+  if (insertedAttractions && insertedAttractions.length > 0) {
+    const wrongCityId = insertedAttractions.filter(a => a.city_id !== cityId)
+    if (wrongCityId.length > 0) {
+      console.error(`[generateCitySuggestions] WARNING: ${wrongCityId.length} attractions have wrong city_id!`)
+      console.error(`Expected: ${cityId}, Got:`, wrongCityId.map(a => ({ name: a.name, city_id: a.city_id })))
+    }
+    console.log(`[generateCitySuggestions] ✓ Inserted ${insertedAttractions.length} attractions for ${cityName}`)
   }
 
   // Store restaurants in database with city_id
@@ -210,13 +242,32 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
     }))
   )
 
+  // Validate all restaurants have city_id before inserting
+  const invalidRestaurants = restaurantsToInsert.filter(r => !r.city_id)
+  if (invalidRestaurants.length > 0) {
+    console.error(`[generateCitySuggestions] ERROR: ${invalidRestaurants.length} restaurants missing city_id!`)
+    console.error('Invalid restaurants:', invalidRestaurants.map(r => ({ name: r.name, city_id: r.city_id })))
+    throw new Error(`Cannot insert restaurants without city_id`)
+  }
+
   const { data: insertedRestaurants, error: restaurantsError } = await supabase
     .from('restaurants')
     .insert(restaurantsToInsert)
     .select()
 
   if (restaurantsError) {
-    console.error('Error inserting restaurants:', restaurantsError)
+    console.error('[generateCitySuggestions] Error inserting restaurants:', restaurantsError)
+    throw restaurantsError
+  }
+
+  // Verify inserted restaurants have correct city_id
+  if (insertedRestaurants && insertedRestaurants.length > 0) {
+    const wrongCityId = insertedRestaurants.filter(r => r.city_id !== cityId)
+    if (wrongCityId.length > 0) {
+      console.error(`[generateCitySuggestions] WARNING: ${wrongCityId.length} restaurants have wrong city_id!`)
+      console.error(`Expected: ${cityId}, Got:`, wrongCityId.map(r => ({ name: r.name, city_id: r.city_id })))
+    }
+    console.log(`[generateCitySuggestions] ✓ Inserted ${insertedRestaurants.length} restaurants for ${cityName}`)
   }
 
   return {
