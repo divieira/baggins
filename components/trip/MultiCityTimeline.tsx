@@ -105,12 +105,12 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
     }
   }, [cities.length, initialVersion, loadExistingSelections, loadTimeBlocks])
 
-  const handleSelectionsChange = (cityId: string, attractionIds: string[], restaurantIds: string[]) => {
+  const handleSelectionsChange = useCallback((cityId: string, attractionIds: string[], restaurantIds: string[]) => {
     setSelections(prev => ({
       ...prev,
       [cityId]: { attractionIds, restaurantIds }
     }))
-  }
+  }, [])
 
   const handleGenerateItinerary = async () => {
     if (!isOnline) {
