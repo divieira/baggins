@@ -23,9 +23,10 @@ interface Props {
   blocks: TimeBlock[]
   tripId: string
   onBlockUpdate: (blockId: string, updates: Partial<TimeBlock>) => Promise<void>
+  isOffline?: boolean
 }
 
-export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockUpdate }: Props) {
+export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockUpdate, isOffline = false }: Props) {
   const [attractions, setAttractions] = useState<Attraction[]>([])
   const [restaurants, setRestaurants] = useState<Restaurant[]>([])
   const supabase = createClient()
@@ -271,6 +272,7 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
                   hotel={hotel}
                   previousBlock={index > 0 ? blocks[index - 1] : null}
                   onUpdate={onBlockUpdate}
+                  isOffline={isOffline}
                 />
               </div>
             )

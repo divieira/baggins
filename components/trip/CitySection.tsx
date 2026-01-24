@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { cacheCityData, getCachedCityData } from '@/lib/offline'
 import type { TripCity, Attraction, Restaurant, Hotel, Traveler } from '@/types'
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   onSelectionsChange: (cityId: string, attractionIds: string[], restaurantIds: string[]) => void
   onGenerateItinerary: (cityId: string) => void
   isGenerating: boolean
+  isOffline?: boolean
 }
 
 interface SuggestionWithSelection extends Attraction {
@@ -23,7 +25,8 @@ export default function CitySection({
   travelers,
   onSelectionsChange,
   onGenerateItinerary,
-  isGenerating
+  isGenerating,
+  isOffline = false
 }: Props) {
   const [attractions, setAttractions] = useState<SuggestionWithSelection[]>([])
   const [restaurants, setRestaurants] = useState<Restaurant[]>([])
@@ -31,6 +34,7 @@ export default function CitySection({
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [expanded, setExpanded] = useState(true)
+  const [usingCachedData, setUsingCachedData] = useState(false)
   const supabase = createClient()
 
   // Load persisted selections from localStorage
@@ -48,51 +52,100 @@ export default function CitySection({
     localStorage.setItem(key, JSON.stringify(selectedIds))
   }
 
-  useEffect(() => {
-    loadCityData()
-  }, [city.id])
-
-  const loadCityData = async () => {
+  const loadCityData = useCallback(async () => {
     setLoading(true)
     try {
-      const [
-        { data: attractionsData },
-        { data: restaurantsData },
-        { data: hotelData }
-      ] = await Promise.all([
-        supabase.from('attractions').select('*').eq('city_id', city.id),
-        supabase.from('restaurants').select('*').eq('city_id', city.id),
-        supabase.from('hotels').select('*').eq('city_id', city.id).single()
-      ])
-
-      // Get persisted selections
+      // Get persisted selections first (this always works, even offline)
       const persistedSelections = getPersistedSelections()
 
-      if (attractionsData) {
-        setAttractions(attractionsData.map(a => ({
+      // Try to load from network if online
+      if (!isOffline) {
+        const [
+          { data: attractionsData },
+          { data: restaurantsData },
+          { data: hotelData }
+        ] = await Promise.all([
+          supabase.from('attractions').select('*').eq('city_id', city.id),
+          supabase.from('restaurants').select('*').eq('city_id', city.id),
+          supabase.from('hotels').select('*').eq('city_id', city.id).single()
+        ])
+
+        if (attractionsData) {
+          setAttractions(attractionsData.map(a => ({
+            ...a,
+            selected: persistedSelections.includes(a.id)
+          })))
+
+          // Notify parent of initial selections
+          if (persistedSelections.length > 0) {
+            onSelectionsChange(city.id, persistedSelections, [])
+          }
+        }
+        if (restaurantsData) {
+          setRestaurants(restaurantsData)
+        }
+        if (hotelData) {
+          setHotel(hotelData)
+        }
+
+        // Cache the data for offline use
+        if (attractionsData || restaurantsData || hotelData) {
+          cacheCityData(city.id, {
+            attractions: attractionsData || [],
+            restaurants: restaurantsData || [],
+            hotel: hotelData || null,
+          })
+          setUsingCachedData(false)
+        }
+        return
+      }
+
+      // Fall back to cache if offline
+      const cached = getCachedCityData(city.id)
+      if (cached) {
+        setAttractions(cached.attractions.map(a => ({
           ...a,
           selected: persistedSelections.includes(a.id)
         })))
+        setRestaurants(cached.restaurants)
+        setHotel(cached.hotel)
+        setUsingCachedData(true)
 
         // Notify parent of initial selections
         if (persistedSelections.length > 0) {
           onSelectionsChange(city.id, persistedSelections, [])
         }
       }
-      if (restaurantsData) {
-        setRestaurants(restaurantsData)
-      }
-      if (hotelData) {
-        setHotel(hotelData)
-      }
     } catch (error) {
       console.error('Error loading city data:', error)
+
+      // Try cache on error
+      const cached = getCachedCityData(city.id)
+      if (cached) {
+        const persistedSelections = getPersistedSelections()
+        setAttractions(cached.attractions.map(a => ({
+          ...a,
+          selected: persistedSelections.includes(a.id)
+        })))
+        setRestaurants(cached.restaurants)
+        setHotel(cached.hotel)
+        setUsingCachedData(true)
+      }
     } finally {
       setLoading(false)
     }
-  }
+  }, [city.id, isOffline, supabase, onSelectionsChange])
+
+  useEffect(() => {
+    loadCityData()
+  }, [loadCityData])
 
   const generateSuggestions = async () => {
+    if (isOffline) {
+      console.warn('Cannot generate suggestions while offline')
+      return
+    }
+
     setGenerating(true)
     try {
       const response = await fetch('/api/ai/generate-city-suggestions', {
@@ -111,8 +164,16 @@ export default function CitySection({
       }
 
       const data = await response.json()
-      setAttractions(data.attractions.map((a: Attraction) => ({ ...a, selected: false })))
+      const newAttractions = data.attractions.map((a: Attraction) => ({ ...a, selected: false }))
+      setAttractions(newAttractions)
       setRestaurants(data.restaurants)
+
+      // Cache the newly generated data
+      cacheCityData(city.id, {
+        attractions: data.attractions,
+        restaurants: data.restaurants,
+        hotel: hotel,
+      })
     } catch (error) {
       console.error('Error generating suggestions:', error)
     } finally {
@@ -158,6 +219,9 @@ export default function CitySection({
             <p className="text-sm text-indigo-100">
               {new Date(city.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(city.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </p>
+            {usingCachedData && (
+              <p className="text-xs text-indigo-200 mt-1">Showing cached data</p>
+            )}
           </div>
           <div className="flex items-center gap-4">
             {selectedAttractionCount > 0 && (
@@ -201,13 +265,17 @@ export default function CitySection({
           ) : attractions.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-600 mb-4">No attractions yet for {city.name}</p>
-              <button
-                onClick={generateSuggestions}
-                disabled={generating}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium"
-              >
-                {generating ? 'Generating...' : 'Generate AI Suggestions'}
-              </button>
+              {isOffline ? (
+                <p className="text-amber-600 text-sm">You&apos;re offline. Connect to the internet to generate suggestions.</p>
+              ) : (
+                <button
+                  onClick={generateSuggestions}
+                  disabled={generating}
+                  className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium"
+                >
+                  {generating ? 'Generating...' : 'Generate AI Suggestions'}
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -216,6 +284,7 @@ export default function CitySection({
                 <h3 className="text-lg font-semibold mb-3 flex items-center">
                   <span className="mr-2">🎯</span>
                   Select Attractions to Visit
+                  {isOffline && <span className="ml-2 text-xs text-amber-600 font-normal">(Read-only while offline)</span>}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {attractions.map(attraction => (
@@ -225,8 +294,8 @@ export default function CitySection({
                         attraction.selected
                           ? 'border-indigo-500 ring-2 ring-indigo-200'
                           : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => toggleAttractionSelection(attraction.id)}
+                      } ${isOffline ? 'opacity-75' : ''}`}
+                      onClick={() => !isOffline && toggleAttractionSelection(attraction.id)}
                     >
                       {/* Image */}
                       <div className="relative h-40 bg-gray-100">
@@ -303,9 +372,9 @@ export default function CitySection({
               <div className="sticky bottom-4 pt-4 bg-gradient-to-t from-white via-white to-transparent">
                 <button
                   onClick={() => onGenerateItinerary(city.id)}
-                  disabled={isGenerating || selectedAttractionCount === 0}
+                  disabled={isGenerating || selectedAttractionCount === 0 || isOffline}
                   className={`w-full py-4 rounded-lg font-semibold text-lg transition-all ${
-                    selectedAttractionCount > 0
+                    selectedAttractionCount > 0 && !isOffline
                       ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   } disabled:opacity-50`}
@@ -318,13 +387,15 @@ export default function CitySection({
                       </svg>
                       Generating Itinerary...
                     </span>
+                  ) : isOffline ? (
+                    'Connect to internet to generate itinerary'
                   ) : selectedAttractionCount > 0 ? (
                     `Generate Itinerary with ${selectedAttractionCount} Attraction${selectedAttractionCount > 1 ? 's' : ''}`
                   ) : (
                     'Select Attractions to Generate Itinerary'
                   )}
                 </button>
-                {selectedAttractionCount > 0 && (
+                {selectedAttractionCount > 0 && !isOffline && (
                   <p className="text-xs text-gray-500 text-center mt-2">
                     AI will create an optimal schedule and select restaurants for you
                   </p>

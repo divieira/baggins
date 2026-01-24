@@ -1,12 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { eachDayOfInterval, format } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
+import {
+  useIsOnline,
+  cacheTimeBlocks,
+  getCachedTimeBlocks,
+  cacheAllVersions,
+  getCachedAllVersions,
+} from '@/lib/offline'
 import type { Trip, Flight, Hotel, Traveler, PlanVersion, TimeBlock, TripCity } from '@/types'
 import CitySection from './CitySection'
 import DayCard from './DayCard'
 import FixedAIInput from '../ai/FixedAIInput'
+import OfflineBanner from '../offline/OfflineBanner'
 
 interface Props {
   trip: Trip
@@ -32,18 +40,49 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
   const [selections, setSelections] = useState<CitySelections>({})
   const [viewMode, setViewMode] = useState<'selection' | 'timeline'>('selection')
   const [generatingItinerary, setGeneratingItinerary] = useState<string | null>(null)
+  const [usingCachedData, setUsingCachedData] = useState(false)
   const supabase = createClient()
+  const isOnline = useIsOnline()
 
-  useEffect(() => {
-    if (cities.length > 0) {
-      loadExistingSelections()
-    }
-    if (initialVersion) {
-      loadTimeBlocks(initialVersion.id)
-    }
-  }, [cities, initialVersion])
+  const loadTimeBlocks = useCallback(async (versionId: string) => {
+    // Try to load from network first if online
+    if (isOnline) {
+      const { data } = await supabase
+        .from('time_blocks')
+        .select('*')
+        .eq('plan_version_id', versionId)
+        .order('date')
+        .order('start_time')
 
-  const loadExistingSelections = async () => {
+      if (data) {
+        setTimeBlocks(data)
+        // Cache the data
+        cacheTimeBlocks(trip.id, versionId, data)
+        setUsingCachedData(false)
+        return
+      }
+    }
+
+    // Fall back to cache if offline or network failed
+    const cached = getCachedTimeBlocks(trip.id, versionId)
+    if (cached) {
+      setTimeBlocks(cached)
+      setUsingCachedData(true)
+    }
+  }, [isOnline, supabase, trip.id])
+
+  const loadExistingSelections = useCallback(async () => {
+    if (!isOnline) {
+      // When offline, check cached time blocks for existing selections
+      if (currentVersion) {
+        const cached = getCachedTimeBlocks(trip.id, currentVersion.id)
+        if (cached && cached.some(b => b.selected_attraction_id)) {
+          setViewMode('timeline')
+        }
+      }
+      return
+    }
+
     // Check if there are any time blocks with selections - if so, show timeline view
     const { data: existingBlocks } = await supabase
       .from('time_blocks')
@@ -55,20 +94,16 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
     if (existingBlocks && existingBlocks.length > 0) {
       setViewMode('timeline')
     }
-  }
+  }, [isOnline, supabase, trip.id, currentVersion])
 
-  const loadTimeBlocks = async (versionId: string) => {
-    const { data } = await supabase
-      .from('time_blocks')
-      .select('*')
-      .eq('plan_version_id', versionId)
-      .order('date')
-      .order('start_time')
-
-    if (data) {
-      setTimeBlocks(data)
+  useEffect(() => {
+    if (cities.length > 0) {
+      loadExistingSelections()
     }
-  }
+    if (initialVersion) {
+      loadTimeBlocks(initialVersion.id)
+    }
+  }, [cities.length, initialVersion, loadExistingSelections, loadTimeBlocks])
 
   const handleSelectionsChange = (cityId: string, attractionIds: string[], restaurantIds: string[]) => {
     setSelections(prev => ({
@@ -78,6 +113,11 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
   }
 
   const handleGenerateItinerary = async (cityId: string) => {
+    if (!isOnline) {
+      console.warn('Cannot generate itinerary while offline')
+      return
+    }
+
     const citySelections = selections[cityId]
     if (!citySelections) return
 
@@ -99,8 +139,6 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
         throw new Error('Failed to generate itinerary')
       }
 
-      const data = await response.json()
-
       // Reload versions and time blocks
       await loadAllVersions()
       setViewMode('timeline')
@@ -112,16 +150,32 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
   }
 
   const loadAllVersions = async () => {
-    const { data: versions } = await supabase
-      .from('plan_versions')
-      .select('*')
-      .eq('trip_id', trip.id)
-      .order('version_number', { ascending: true })
+    // Try to load from network first if online
+    if (isOnline) {
+      const { data: versions } = await supabase
+        .from('plan_versions')
+        .select('*')
+        .eq('trip_id', trip.id)
+        .order('version_number', { ascending: true })
 
-    if (versions && versions.length > 0) {
-      setAllVersions(versions)
-      const latestVersion = versions[versions.length - 1]
+      if (versions && versions.length > 0) {
+        setAllVersions(versions)
+        const latestVersion = versions[versions.length - 1]
+        setCurrentVersion(latestVersion)
+        // Cache the versions
+        cacheAllVersions(trip.id, versions)
+        await loadTimeBlocks(latestVersion.id)
+        return
+      }
+    }
+
+    // Fall back to cache if offline or network failed
+    const cachedVersions = getCachedAllVersions(trip.id)
+    if (cachedVersions && cachedVersions.length > 0) {
+      setAllVersions(cachedVersions)
+      const latestVersion = cachedVersions[cachedVersions.length - 1]
       setCurrentVersion(latestVersion)
+      setUsingCachedData(true)
       await loadTimeBlocks(latestVersion.id)
     }
   }
@@ -141,10 +195,17 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
   }
 
   const handleModificationComplete = async () => {
-    await loadAllVersions()
+    if (isOnline) {
+      await loadAllVersions()
+    }
   }
 
   const handleBlockUpdate = async (blockId: string, updates: Partial<TimeBlock>) => {
+    if (!isOnline) {
+      console.warn('Cannot update blocks while offline')
+      return
+    }
+
     const { error } = await supabase
       .from('time_blocks')
       .update(updates)
@@ -214,6 +275,16 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
 
   return (
     <div className="pb-24">
+      {/* Offline Banner */}
+      <OfflineBanner showWhenOnline={usingCachedData} />
+
+      {/* Cached data indicator */}
+      {usingCachedData && isOnline && (
+        <div className="mb-4 text-center text-sm text-gray-500">
+          Showing cached data. <button onClick={() => loadAllVersions()} className="text-indigo-600 hover:underline">Refresh</button>
+        </div>
+      )}
+
       {/* View Mode Toggle */}
       <div className="flex items-center justify-center gap-2 mb-6">
         <button
@@ -258,6 +329,7 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
                 onSelectionsChange={handleSelectionsChange}
                 onGenerateItinerary={handleGenerateItinerary}
                 isGenerating={generatingItinerary === city.id}
+                isOffline={!isOnline}
               />
             ))
           )}
@@ -313,6 +385,7 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
                         blocks={blocks}
                         tripId={trip.id}
                         onBlockUpdate={handleBlockUpdate}
+                        isOffline={!isOnline}
                       />
                     )
                   })}
@@ -323,11 +396,13 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
         </div>
       )}
 
-      {/* Fixed AI Input */}
-      <FixedAIInput
-        tripId={trip.id}
-        onModificationComplete={handleModificationComplete}
-      />
+      {/* Fixed AI Input - only show when online */}
+      {isOnline && (
+        <FixedAIInput
+          tripId={trip.id}
+          onModificationComplete={handleModificationComplete}
+        />
+      )}
     </div>
   )
 }
