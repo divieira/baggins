@@ -1,4 +1,20 @@
-import { format, parse, isWithinInterval } from 'date-fns'
+import { format, parse, isWithinInterval, isValid } from 'date-fns'
+
+/**
+ * Parse time string flexibly (handles HH:mm or HH:mm:ss)
+ */
+function parseTimeFlexible(timeString: string): Date {
+  // Try HH:mm:ss first
+  let date = parse(timeString, 'HH:mm:ss', new Date())
+  if (isValid(date)) return date
+
+  // Try HH:mm
+  date = parse(timeString, 'HH:mm', new Date())
+  if (isValid(date)) return date
+
+  // Fallback
+  return parse('00:00', 'HH:mm', new Date())
+}
 
 /**
  * Check if a time is within opening hours
@@ -10,19 +26,51 @@ export function isOpenAt(
 ): boolean {
   if (!openingTime || !closingTime) return true // Assume open if no hours specified
 
-  const timeDate = parse(time, 'HH:mm', new Date())
-  const openDate = parse(openingTime, 'HH:mm', new Date())
-  const closeDate = parse(closingTime, 'HH:mm', new Date())
+  const timeDate = parseTimeFlexible(time)
+  const openDate = parseTimeFlexible(openingTime)
+  const closeDate = parseTimeFlexible(closingTime)
 
   return isWithinInterval(timeDate, { start: openDate, end: closeDate })
 }
 
 /**
  * Format time for display
+ * Handles both HH:mm and HH:mm:ss formats
  */
-export function formatTime(time: string): string {
-  const date = parse(time, 'HH:mm:ss', new Date())
-  return format(date, 'h:mm a')
+export function formatTime(time: string | null | undefined): string {
+  if (!time || typeof time !== 'string') return ''
+
+  try {
+    // Try HH:mm:ss format first (from database)
+    let date = parse(time, 'HH:mm:ss', new Date())
+    if (isValid(date)) {
+      return format(date, 'h:mm a')
+    }
+
+    // Try HH:mm format (normalized)
+    date = parse(time, 'HH:mm', new Date())
+    if (isValid(date)) {
+      return format(date, 'h:mm a')
+    }
+
+    // Try to extract time from timestamp
+    const timeMatch = time.match(/(\d{2}):(\d{2})(?::(\d{2}))?/)
+    if (timeMatch) {
+      const [, hours, minutes, seconds] = timeMatch
+      const timeOnly = seconds ? `${hours}:${minutes}:${seconds}` : `${hours}:${minutes}`
+      date = parse(timeOnly, seconds ? 'HH:mm:ss' : 'HH:mm', new Date())
+      if (isValid(date)) {
+        return format(date, 'h:mm a')
+      }
+    }
+
+    // Fallback: return original string
+    console.warn(`Unable to format time: ${time}`)
+    return time
+  } catch (error) {
+    console.error(`Error formatting time: ${time}`, error)
+    return ''
+  }
 }
 
 /**
