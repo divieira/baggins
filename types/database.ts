@@ -331,7 +331,7 @@ export interface Database {
           city_id: string | null
           plan_version_id: string
           date: string
-          block_type: 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'evening'
+          block_type: 'morning' | 'lunch' | 'afternoon' | 'dinner'
           start_time: string
           end_time: string
           selected_attraction_id: string | null
@@ -345,7 +345,7 @@ export interface Database {
           city_id?: string | null
           plan_version_id: string
           date: string
-          block_type: 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'evening'
+          block_type: 'morning' | 'lunch' | 'afternoon' | 'dinner'
           start_time: string
           end_time: string
           selected_attraction_id?: string | null

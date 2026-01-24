@@ -407,7 +407,6 @@ export default function TimeBlockCard({
       case 'lunch': return 'Lunch'
       case 'afternoon': return 'Afternoon Activity'
       case 'dinner': return 'Dinner'
-      case 'evening': return 'Evening Activity'
       default: return 'Activity'
     }
   }
