@@ -47,7 +47,7 @@ test.describe('Multi-City Trip Functionality', () => {
 
   test.describe('Trip Creation Page', () => {
     test('should have AI-powered trip creation with multi-city support', async ({ page }) => {
-      await page.goto('/dashboard/trips/new-message');
+      await page.goto('/dashboard/trips/new');
 
       // Should have textarea for natural language input
       const textarea = page.locator('textarea');
@@ -55,11 +55,11 @@ test.describe('Multi-City Trip Functionality', () => {
 
       // Check placeholder mentions trip/travel/destination
       const placeholder = await textarea.getAttribute('placeholder');
-      expect(placeholder?.toLowerCase()).toMatch(/trip|travel|destination|go to|paris/);
+      expect(placeholder?.toLowerCase()).toMatch(/trip|travel|destination|go to|chile|explore/);
     });
 
     test('should accept multi-city trip description', async ({ page }) => {
-      await page.goto('/dashboard/trips/new-message');
+      await page.goto('/dashboard/trips/new');
 
       const textarea = page.locator('textarea');
       await textarea.fill('I want to visit Paris for 3 days and then Rome for 2 days with my family');

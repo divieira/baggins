@@ -471,7 +471,7 @@ export default function TimeBlockCard({
               style={{ scrollbarWidth: 'thin' }}
             >
               {displayItems.map((item, index) => {
-                const isSelectedCard = selectedItem && index === 0
+                const isSelectedCard = !!(selectedItem && index === 0)
                 const isBest = !isSelectedCard && index === (selectedItem ? 1 : 0)
 
                 return (
