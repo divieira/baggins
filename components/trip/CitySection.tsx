@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cacheCityData, getCachedCityData } from '@/lib/offline'
+import { calculateDistance, estimateTravelTime, formatTravelTime } from '@/utils/distance'
 import type { TripCity, Attraction, Restaurant, Hotel, Traveler } from '@/types'
 
 interface Props {
@@ -202,6 +203,19 @@ export default function CitySection({
     return `https://www.google.com/maps/dir/?api=1&origin=${fromLat},${fromLon}&destination=${toLat},${toLon}&travelmode=walking`
   }
 
+  const getTravelTimeFromHotel = (attraction: Attraction): string | null => {
+    if (!hotel || !hotel.latitude || !hotel.longitude) return null
+
+    const distance = calculateDistance(
+      hotel.latitude,
+      hotel.longitude,
+      attraction.latitude,
+      attraction.longitude
+    )
+    const travelTime = estimateTravelTime(distance)
+    return formatTravelTime(travelTime)
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
       {/* City Header */}
@@ -336,6 +350,11 @@ export default function CitySection({
                             <span>⏱️ {attraction.duration_minutes} min</span>
                           )}
                         </div>
+                        {hotel && getTravelTimeFromHotel(attraction) && (
+                          <div className="mt-1 text-xs text-blue-600">
+                            🚗 {getTravelTimeFromHotel(attraction)} from hotel
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 mt-2">
                           <a
                             href={getMapsUrl(attraction.latitude, attraction.longitude, attraction.name)}

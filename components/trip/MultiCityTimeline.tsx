@@ -363,7 +363,7 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
                 ) : !isOnline ? (
                   'Connect to internet to generate itinerary'
                 ) : Object.keys(selections).some(cityId => selections[cityId].attractionIds.length > 0) ? (
-                  `Generate Itinerary${Object.keys(selections).length > 1 ? ' for All Cities' : ''}`
+                  'Generate/Update Itinerary'
                 ) : (
                   'Select Attractions to Generate Itinerary'
                 )}

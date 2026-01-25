@@ -84,6 +84,14 @@ export async function POST(request: Request) {
       )
     }
 
+    // Check if there are existing time blocks for this city
+    const { data: existingBlocks } = await supabase
+      .from('time_blocks')
+      .select('*')
+      .eq('city_id', cityId)
+      .order('date')
+      .order('start_time')
+
     // Get current plan version
     const { data: currentVersion } = await supabase
       .from('plan_versions')
@@ -191,7 +199,55 @@ CRITICAL REQUIREMENTS (will be validated):
       )
     }
 
-    // Create new plan version
+    // If blocks exist, update them; otherwise create new version and blocks
+    if (existingBlocks && existingBlocks.length > 0) {
+      // Update existing time blocks
+      for (const aiBlock of itineraryResponse.itinerary) {
+        const existingBlock = existingBlocks.find(
+          b => b.date === aiBlock.date && b.block_type === aiBlock.blockType
+        )
+
+        if (existingBlock) {
+          await supabase
+            .from('time_blocks')
+            .update({
+              selected_attraction_id: aiBlock.attractionId || null,
+              selected_restaurant_id: aiBlock.restaurantId || null
+            })
+            .eq('id', existingBlock.id)
+        }
+      }
+
+      // Clear any blocks that aren't in the AI response
+      const aiBlockKeys = new Set(
+        itineraryResponse.itinerary.map((b: any) => `${b.date}-${b.blockType}`)
+      )
+
+      for (const existingBlock of existingBlocks) {
+        const blockKey = `${existingBlock.date}-${existingBlock.block_type}`
+        if (!aiBlockKeys.has(blockKey)) {
+          await supabase
+            .from('time_blocks')
+            .update({
+              selected_attraction_id: null,
+              selected_restaurant_id: null
+            })
+            .eq('id', existingBlock.id)
+        }
+      }
+
+      // Use the existing version (latest one)
+      const versionId = currentVersion?.id || existingBlocks[0].plan_version_id
+      return NextResponse.json({
+        success: true,
+        versionId,
+        versionNumber: currentVersion?.version_number || 1,
+        summary: itineraryResponse.summary,
+        updated: true
+      })
+    }
+
+    // No existing blocks - create new plan version and blocks
     const newVersionNumber = currentVersion ? currentVersion.version_number + 1 : 1
     const { data: newVersion, error: versionError } = await supabase
       .from('plan_versions')
