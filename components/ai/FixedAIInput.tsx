@@ -2,9 +2,16 @@
 
 import { useState } from 'react'
 
+interface ModifyPlanResponse {
+  success: boolean
+  versionId: string
+  versionNumber: number
+  summary: string
+}
+
 interface Props {
   tripId: string
-  onModificationComplete: () => void
+  onModificationComplete: (response?: ModifyPlanResponse) => void
 }
 
 export default function FixedAIInput({ tripId, onModificationComplete }: Props) {
@@ -36,16 +43,16 @@ export default function FixedAIInput({ tripId, onModificationComplete }: Props) 
         throw new Error(error.error || 'Failed to modify plan')
       }
 
-      const data = await response.json()
+      const data = await response.json() as ModifyPlanResponse
       console.log('[FixedAIInput] API response:', data)
       setFeedback({ type: 'success', message: data.summary })
 
       // Clear feedback after 4 seconds
       setTimeout(() => setFeedback(null), 4000)
 
-      // Notify parent to reload the plan
-      console.log('[FixedAIInput] Calling onModificationComplete')
-      onModificationComplete()
+      // Notify parent to reload the plan with the response data
+      console.log('[FixedAIInput] Calling onModificationComplete with versionId:', data.versionId)
+      onModificationComplete(data)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to modify plan'
       setFeedback({ type: 'error', message: errorMessage })

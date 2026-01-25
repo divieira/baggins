@@ -213,11 +213,20 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
     }
   }
 
-  const handleModificationComplete = async () => {
-    console.log('[MultiCityTimeline] handleModificationComplete called, isOnline:', isOnline)
+  const handleModificationComplete = async (response?: { versionId: string; versionNumber: number }) => {
+    console.log('[MultiCityTimeline] handleModificationComplete called, isOnline:', isOnline, 'response:', response)
     if (isOnline) {
-      await loadAllVersions()
-      console.log('[MultiCityTimeline] loadAllVersions completed')
+      if (response?.versionId) {
+        // Use the version ID directly from the API response for immediate update
+        console.log('[MultiCityTimeline] Loading time blocks for new version:', response.versionId)
+        await loadTimeBlocks(response.versionId)
+        // Then refresh all versions in background
+        loadAllVersions()
+      } else {
+        // Fallback to full refresh
+        await loadAllVersions()
+      }
+      console.log('[MultiCityTimeline] Modification complete')
     }
   }
 
