@@ -2,6 +2,17 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
+interface ModifiedBlock {
+  id: string
+  selectedAttractionId: string | null
+  selectedRestaurantId: string | null
+}
+
+interface Traveler {
+  name: string
+  age?: number
+}
+
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 })
@@ -43,6 +54,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
     }
 
+    // Get cities for multi-city support
+    const { data: cities } = await supabase
+      .from('trip_cities')
+      .select('*')
+      .eq('trip_id', tripId)
+      .order('order_index')
+
     // Get current plan version
     const { data: currentVersion } = await supabase
       .from('plan_versions')
@@ -64,40 +82,73 @@ export async function POST(request: Request) {
       .order('date')
       .order('start_time')
 
-    // Get available attractions and restaurants
+    // Get all city IDs
+    const cityIds = cities?.map(c => c.id) || []
+
+    // Get available attractions and restaurants for all cities
     const [{ data: attractions }, { data: restaurants }] = await Promise.all([
-      supabase.from('attractions').select('*').eq('trip_id', tripId),
-      supabase.from('restaurants').select('*').eq('trip_id', tripId)
+      cityIds.length > 0
+        ? supabase.from('attractions').select('*').in('city_id', cityIds)
+        : supabase.from('attractions').select('*').eq('trip_id', tripId),
+      cityIds.length > 0
+        ? supabase.from('restaurants').select('*').in('city_id', cityIds)
+        : supabase.from('restaurants').select('*').eq('trip_id', tripId)
     ])
 
-    // Build current plan state
+    // Build city lookup for date ranges
+    const getCityForDate = (dateStr: string) => {
+      return cities?.find(c => dateStr >= c.start_date && dateStr <= c.end_date) || null
+    }
+
+    // Build current plan state with city information
     const currentPlan = {
-      timeBlocks: currentTimeBlocks?.map(block => ({
-        id: block.id,
-        date: block.date,
-        blockType: block.block_type,
-        startTime: block.start_time,
-        endTime: block.end_time,
-        selectedAttractionId: block.selected_attraction_id,
-        selectedRestaurantId: block.selected_restaurant_id
+      cities: cities?.map(c => ({
+        id: c.id,
+        name: c.name,
+        start_date: c.start_date,
+        end_date: c.end_date
       })) || [],
-      availableAttractions: attractions?.map(a => ({
-        id: a.id,
-        name: a.name,
-        description: a.description,
-        category: a.category,
-        duration_minutes: a.duration_minutes,
-        is_kid_friendly: a.is_kid_friendly,
-        min_age: a.min_age
-      })) || [],
-      availableRestaurants: restaurants?.map(r => ({
-        id: r.id,
-        name: r.name,
-        description: r.description,
-        cuisine_type: r.cuisine_type,
-        price_level: r.price_level,
-        is_kid_friendly: r.is_kid_friendly
-      })) || []
+      timeBlocks: currentTimeBlocks?.map(block => {
+        const blockCity = getCityForDate(block.date)
+        return {
+          id: block.id,
+          date: block.date,
+          cityId: block.city_id || blockCity?.id,
+          cityName: blockCity?.name,
+          blockType: block.block_type,
+          startTime: block.start_time,
+          endTime: block.end_time,
+          selectedAttractionId: block.selected_attraction_id,
+          selectedRestaurantId: block.selected_restaurant_id
+        }
+      }) || [],
+      availableAttractions: attractions?.map(a => {
+        const attrCity = cities?.find(c => c.id === a.city_id)
+        return {
+          id: a.id,
+          name: a.name,
+          description: a.description,
+          category: a.category,
+          duration_minutes: a.duration_minutes,
+          is_kid_friendly: a.is_kid_friendly,
+          min_age: a.min_age,
+          cityId: a.city_id,
+          cityName: attrCity?.name
+        }
+      }) || [],
+      availableRestaurants: restaurants?.map(r => {
+        const restCity = cities?.find(c => c.id === r.city_id)
+        return {
+          id: r.id,
+          name: r.name,
+          description: r.description,
+          cuisine_type: r.cuisine_type,
+          price_level: r.price_level,
+          is_kid_friendly: r.is_kid_friendly,
+          cityId: r.city_id,
+          cityName: restCity?.name
+        }
+      }) || []
     }
 
     // Get travelers for context
@@ -107,8 +158,13 @@ export async function POST(request: Request) {
       .eq('trip_id', tripId)
 
     const travelerContext = travelers && travelers.length > 0
-      ? `Travelers: ${travelers.map((t: any) => `${t.name}${t.age ? ` (${t.age} years old)` : ''}`).join(', ')}`
+      ? `Travelers: ${travelers.map((t: Traveler) => `${t.name}${t.age ? ` (${t.age} years old)` : ''}`).join(', ')}`
       : 'Solo traveler'
+
+    // Build city information for the prompt
+    const cityInfo = cities && cities.length > 0
+      ? `\nCities in this trip:\n${cities.map(c => `- ${c.name}: ${c.start_date} to ${c.end_date}`).join('\n')}`
+      : ''
 
     // Send to Claude for modification
     const message = await anthropic.messages.create({
@@ -121,6 +177,7 @@ export async function POST(request: Request) {
 Trip: ${trip.destination}
 Dates: ${trip.start_date} to ${trip.end_date}
 ${travelerContext}
+${cityInfo}
 
 Current Plan:
 ${JSON.stringify(currentPlan, null, 2)}
@@ -144,13 +201,17 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
   "summary": "Brief description of changes made (1-2 sentences)"
 }
 
-IMPORTANT:
+CRITICAL REQUIREMENTS:
 - Only include timeBlocks that have changes (new selections or removals)
 - Use attraction IDs from availableAttractions and restaurant IDs from availableRestaurants
-- For lunch/dinner blocks, use selectedRestaurantId
-- For morning/afternoon/evening blocks, use selectedAttractionId
+- For lunch/dinner blocks, use selectedRestaurantId (attractionId must be null)
+- For morning/afternoon/evening blocks, use selectedAttractionId (restaurantId must be null)
+- IMPORTANT: Only assign attractions/restaurants to time blocks in THEIR OWN CITY
+  * Check the cityId of each attraction/restaurant
+  * Check the cityId of each time block
+  * They MUST match - do NOT assign Paris attractions to Rome days!
 - Set to null to remove a selection
-- Do not invent new IDs`
+- Do not invent new IDs - only use IDs from the available lists`
       }]
     })
 
@@ -184,19 +245,51 @@ IMPORTANT:
     }
 
     // Create map of modifications by block ID
-    const modificationsMap = new Map()
-    modifiedPlan.timeBlocks.forEach((modifiedBlock: any) => {
+    const modificationsMap = new Map<string, { selectedAttractionId: string | null; selectedRestaurantId: string | null }>()
+    modifiedPlan.timeBlocks.forEach((modifiedBlock: ModifiedBlock) => {
       modificationsMap.set(modifiedBlock.id, {
         selectedAttractionId: modifiedBlock.selectedAttractionId,
         selectedRestaurantId: modifiedBlock.selectedRestaurantId
       })
     })
 
+    // Validate that modifications don't assign attractions to wrong cities
+    for (const [blockId, modification] of modificationsMap.entries()) {
+      const block = currentTimeBlocks?.find(b => b.id === blockId)
+      if (!block) continue
+
+      const blockCity = getCityForDate(block.date)
+
+      if (modification.selectedAttractionId) {
+        const attraction = attractions?.find(a => a.id === modification.selectedAttractionId)
+        if (attraction && blockCity && attraction.city_id !== blockCity.id) {
+          console.error(`Validation failed: Attraction ${attraction.id} from city ${attraction.city_id} assigned to block in city ${blockCity.id}`)
+          return NextResponse.json(
+            { error: `Validation failed: Cannot assign attraction from one city to a time block in another city` },
+            { status: 500 }
+          )
+        }
+      }
+
+      if (modification.selectedRestaurantId) {
+        const restaurant = restaurants?.find(r => r.id === modification.selectedRestaurantId)
+        if (restaurant && blockCity && restaurant.city_id !== blockCity.id) {
+          console.error(`Validation failed: Restaurant ${restaurant.id} from city ${restaurant.city_id} assigned to block in city ${blockCity.id}`)
+          return NextResponse.json(
+            { error: `Validation failed: Cannot assign restaurant from one city to a time block in another city` },
+            { status: 500 }
+          )
+        }
+      }
+    }
+
     // Copy all current time blocks to new version with modifications applied
     const newTimeBlocks = currentTimeBlocks?.map(block => {
       const modification = modificationsMap.get(block.id)
+      const blockCity = getCityForDate(block.date)
       return {
         trip_id: block.trip_id,
+        city_id: block.city_id || blockCity?.id,
         plan_version_id: newVersion.id,
         date: block.date,
         block_type: block.block_type,
@@ -227,10 +320,11 @@ IMPORTANT:
       versionNumber: newVersion.version_number,
       summary: modifiedPlan.summary
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error modifying plan:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Failed to modify plan'
     return NextResponse.json(
-      { error: error.message || 'Failed to modify plan' },
+      { error: errorMessage },
       { status: 500 }
     )
   }
