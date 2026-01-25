@@ -10,6 +10,12 @@ interface TripDetails {
     start_date: string
     end_date: string
   }
+  cities?: Array<{
+    id: string
+    name: string
+    start_date: string
+    end_date: string
+  }>
   travelers: Array<{
     id: string
     name: string
@@ -31,8 +37,11 @@ interface TripDetails {
     check_out_date: string
     address: string
   }>
+  attractions?: Array<any>
   parsed: any
 }
+
+type ProgressStep = 'parsing' | 'generating-suggestions' | 'generating-itinerary' | 'complete'
 
 interface MessageBasedTripCreatorProps {
   tripId?: string
@@ -44,6 +53,7 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tripDetails, setTripDetails] = useState<TripDetails | null>(null)
+  const [progressStep, setProgressStep] = useState<ProgressStep | null>(null)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,8 +66,10 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
 
     setLoading(true)
     setError(null)
+    setProgressStep('parsing')
 
     try {
+      // Step 1: Parse trip and generate suggestions
       const response = await fetch('/api/ai/parse-trip', {
         method: 'POST',
         headers: {
@@ -72,7 +84,46 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
         throw new Error(data.error || 'Failed to parse trip details')
       }
 
+      setProgressStep('generating-suggestions')
       setTripDetails(data)
+
+      // Step 2: Auto-generate itinerary for each city with attractions
+      if (!tripId && data.cities && data.cities.length > 0 && data.attractions && data.attractions.length > 0) {
+        setProgressStep('generating-itinerary')
+
+        // Group attractions by city
+        const attractionsByCity = data.attractions.reduce((acc: any, attr: any) => {
+          if (!acc[attr.city_id]) {
+            acc[attr.city_id] = []
+          }
+          acc[attr.city_id].push(attr.id)
+          return acc
+        }, {})
+
+        // Generate itinerary for each city
+        for (const city of data.cities) {
+          const selectedAttractionIds = attractionsByCity[city.id] || []
+
+          if (selectedAttractionIds.length > 0) {
+            try {
+              await fetch('/api/ai/generate-itinerary', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  tripId: data.trip.id,
+                  cityId: city.id,
+                  selectedAttractionIds
+                })
+              })
+            } catch (err) {
+              console.error(`Failed to generate itinerary for ${city.name}:`, err)
+              // Continue with other cities even if one fails
+            }
+          }
+        }
+      }
+
+      setProgressStep('complete')
       setMessage('') // Clear the input for next message
 
       // Call callback if provided
@@ -84,10 +135,11 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
       if (!tripId) {
         setTimeout(() => {
           router.push(`/dashboard/trips/${data.trip.id}`)
-        }, 1500)
+        }, 2000)
       }
     } catch (err: any) {
       setError(err.message)
+      setProgressStep(null)
     } finally {
       setLoading(false)
     }
@@ -131,6 +183,58 @@ export default function MessageBasedTripCreator({ tripId, onTripCreated }: Messa
         {error && (
           <div className="bg-rose-50 border-2 border-rose-200 text-rose-700 px-4 py-3 rounded-2xl">
             {error}
+          </div>
+        )}
+
+        {/* Progress Bar */}
+        {loading && progressStep && (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center animate-spin">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold text-blue-900">
+                  {progressStep === 'parsing' && 'Parsing your trip details...'}
+                  {progressStep === 'generating-suggestions' && 'Finding amazing places to visit...'}
+                  {progressStep === 'generating-itinerary' && 'Creating your perfect itinerary...'}
+                  {progressStep === 'complete' && 'All set! Redirecting...'}
+                </div>
+                <div className="text-sm text-blue-600 mt-1">
+                  {progressStep === 'parsing' && 'Understanding your travel plans'}
+                  {progressStep === 'generating-suggestions' && 'Discovering attractions and restaurants'}
+                  {progressStep === 'generating-itinerary' && 'Optimizing your schedule'}
+                  {progressStep === 'complete' && 'Your adventure awaits!'}
+                </div>
+              </div>
+            </div>
+
+            {/* Progress Steps */}
+            <div className="flex gap-2">
+              <div className={`flex-1 h-2 rounded-full transition-all ${
+                ['parsing', 'generating-suggestions', 'generating-itinerary', 'complete'].includes(progressStep)
+                  ? 'bg-blue-500'
+                  : 'bg-blue-200'
+              }`}></div>
+              <div className={`flex-1 h-2 rounded-full transition-all ${
+                ['generating-suggestions', 'generating-itinerary', 'complete'].includes(progressStep)
+                  ? 'bg-blue-500'
+                  : 'bg-blue-200'
+              }`}></div>
+              <div className={`flex-1 h-2 rounded-full transition-all ${
+                ['generating-itinerary', 'complete'].includes(progressStep)
+                  ? 'bg-blue-500'
+                  : 'bg-blue-200'
+              }`}></div>
+              <div className={`flex-1 h-2 rounded-full transition-all ${
+                progressStep === 'complete'
+                  ? 'bg-blue-500'
+                  : 'bg-blue-200'
+              }`}></div>
+            </div>
           </div>
         )}
 
