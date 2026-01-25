@@ -166,6 +166,15 @@ export async function POST(request: Request) {
       ? `\nCities in this trip:\n${cities.map(c => `- ${c.name}: ${c.start_date} to ${c.end_date}`).join('\n')}`
       : ''
 
+    // Log context summary before sending to AI
+    console.log('[modify-plan] Sending to AI:')
+    console.log(`  Trip: ${trip.destination} (${trip.start_date} to ${trip.end_date})`)
+    console.log(`  Cities: ${cities?.map(c => c.name).join(', ') || 'none'}`)
+    console.log(`  Time blocks: ${currentTimeBlocks?.length || 0} (${currentTimeBlocks?.filter(b => b.selected_attraction_id || b.selected_restaurant_id).length || 0} with selections)`)
+    console.log(`  Available attractions: ${attractions?.length || 0}`)
+    console.log(`  Available restaurants: ${restaurants?.length || 0}`)
+    console.log(`  User request: "${modificationRequest}"`)
+
     // Send to Claude for modification
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',
