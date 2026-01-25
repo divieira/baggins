@@ -275,6 +275,16 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
             const block = blocks.find(b => b.id === entry.id)
             if (!block) return null
 
+            // Find the actual previous time block in the timeline (not just previous timeline entry)
+            let previousTimeBlock: TimeBlock | null = null
+            for (let i = index - 1; i >= 0; i--) {
+              const prevEntry = timeline[i]
+              if (prevEntry.type === 'activity' || prevEntry.type === 'restaurant') {
+                previousTimeBlock = blocks.find(b => b.id === prevEntry.id) || null
+                break
+              }
+            }
+
             return (
               <div key={entry.id} className="space-y-2">
                 {entry.travelTimeFromPrevious && entry.travelTimeFromPrevious > 0 && (
@@ -296,7 +306,7 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
                   availableAttractions={getAvailableAttractions(block)}
                   availableRestaurants={getAvailableRestaurants(block)}
                   hotel={hotel}
-                  previousBlock={index > 0 ? blocks[index - 1] : null}
+                  previousBlock={previousTimeBlock}
                   onUpdate={onBlockUpdate}
                   isOffline={isOffline}
                 />
