@@ -221,7 +221,49 @@ CRITICAL REQUIREMENTS:
     }
 
     // Parse the AI response
+    console.log('AI raw response:', content.text)
     const modifiedPlan = JSON.parse(stripMarkdownCodeFences(content.text))
+    console.log('Parsed modifications:', JSON.stringify(modifiedPlan, null, 2))
+
+    // Validate the response structure
+    if (!modifiedPlan.timeBlocks || !Array.isArray(modifiedPlan.timeBlocks)) {
+      console.error('AI returned invalid response: missing or invalid timeBlocks array')
+      return NextResponse.json(
+        { error: 'AI returned an invalid response format' },
+        { status: 500 }
+      )
+    }
+
+    // Log summary
+    console.log(`AI returned ${modifiedPlan.timeBlocks.length} modified blocks`)
+
+    // Validate that all returned block IDs exist in the current time blocks
+    const existingBlockIds = new Set(currentTimeBlocks?.map(b => b.id) || [])
+    const invalidIds = modifiedPlan.timeBlocks.filter((b: ModifiedBlock) => !existingBlockIds.has(b.id))
+    if (invalidIds.length > 0) {
+      console.warn('AI returned modifications for non-existent block IDs:', invalidIds.map((b: ModifiedBlock) => b.id))
+    }
+
+    // Validate that attraction/restaurant IDs are valid
+    const attractionIds = new Set(attractions?.map(a => a.id) || [])
+    const restaurantIds = new Set(restaurants?.map(r => r.id) || [])
+
+    for (const block of modifiedPlan.timeBlocks as ModifiedBlock[]) {
+      if (block.selectedAttractionId && !attractionIds.has(block.selectedAttractionId)) {
+        console.error(`Invalid attraction ID: ${block.selectedAttractionId}`)
+        return NextResponse.json(
+          { error: `AI selected an invalid attraction ID: ${block.selectedAttractionId}` },
+          { status: 500 }
+        )
+      }
+      if (block.selectedRestaurantId && !restaurantIds.has(block.selectedRestaurantId)) {
+        console.error(`Invalid restaurant ID: ${block.selectedRestaurantId}`)
+        return NextResponse.json(
+          { error: `AI selected an invalid restaurant ID: ${block.selectedRestaurantId}` },
+          { status: 500 }
+        )
+      }
+    }
 
     // Create new plan version
     const { data: newVersion, error: versionError } = await supabase
@@ -247,11 +289,16 @@ CRITICAL REQUIREMENTS:
     // Create map of modifications by block ID
     const modificationsMap = new Map<string, { selectedAttractionId: string | null; selectedRestaurantId: string | null }>()
     modifiedPlan.timeBlocks.forEach((modifiedBlock: ModifiedBlock) => {
-      modificationsMap.set(modifiedBlock.id, {
-        selectedAttractionId: modifiedBlock.selectedAttractionId,
-        selectedRestaurantId: modifiedBlock.selectedRestaurantId
-      })
+      // Only add to map if the block ID exists in current time blocks
+      if (existingBlockIds.has(modifiedBlock.id)) {
+        modificationsMap.set(modifiedBlock.id, {
+          selectedAttractionId: modifiedBlock.selectedAttractionId,
+          selectedRestaurantId: modifiedBlock.selectedRestaurantId
+        })
+      }
     })
+
+    console.log(`Applied ${modificationsMap.size} valid modifications out of ${modifiedPlan.timeBlocks.length} returned by AI`)
 
     // Validate that modifications don't assign attractions to wrong cities
     for (const [blockId, modification] of modificationsMap.entries()) {
@@ -304,6 +351,9 @@ CRITICAL REQUIREMENTS:
       }
     }) || []
 
+    console.log(`Creating ${newTimeBlocks.length} time blocks for new version ${newVersion.id}`)
+    console.log('Modifications applied:', Array.from(modificationsMap.entries()))
+
     // Insert new time blocks
     const { error: blocksError } = await supabase
       .from('time_blocks')
@@ -313,6 +363,8 @@ CRITICAL REQUIREMENTS:
       console.error('Error creating time blocks:', blocksError)
       throw new Error('Failed to create time blocks')
     }
+
+    console.log('Successfully created time blocks for version', newVersion.version_number)
 
     return NextResponse.json({
       success: true,

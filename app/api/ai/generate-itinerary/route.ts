@@ -220,7 +220,7 @@ CRITICAL REQUIREMENTS (will be validated):
 
       // Clear any blocks that aren't in the AI response
       const aiBlockKeys = new Set(
-        itineraryResponse.itinerary.map((b: any) => `${b.date}-${b.blockType}`)
+        itineraryResponse.itinerary.map((b: ItineraryBlock) => `${b.date}-${b.blockType}`)
       )
 
       for (const existingBlock of existingBlocks) {
@@ -302,9 +302,37 @@ CRITICAL REQUIREMENTS (will be validated):
       }
     })
 
+    // Get existing time blocks from the current version for OTHER cities
+    // This preserves multi-city itinerary data when generating for one city
+    const existingBlocksForOtherCities: TimeBlockInsert[] = []
+    if (currentVersion) {
+      const { data: otherCityBlocks } = await supabase
+        .from('time_blocks')
+        .select('*')
+        .eq('plan_version_id', currentVersion.id)
+        .neq('city_id', cityId)
+
+      if (otherCityBlocks) {
+        existingBlocksForOtherCities.push(...otherCityBlocks.map(block => ({
+          trip_id: block.trip_id,
+          city_id: block.city_id,
+          plan_version_id: newVersion.id,
+          date: block.date,
+          block_type: block.block_type,
+          start_time: block.start_time,
+          end_time: block.end_time,
+          selected_attraction_id: block.selected_attraction_id,
+          selected_restaurant_id: block.selected_restaurant_id
+        })))
+      }
+    }
+
+    // Combine new city blocks with preserved blocks from other cities
+    const allBlocksToInsert = [...timeBlocksToInsert, ...existingBlocksForOtherCities]
+
     const { error: blocksError } = await supabase
       .from('time_blocks')
-      .insert(timeBlocksToInsert)
+      .insert(allBlocksToInsert)
 
     if (blocksError) {
       console.error('Error creating time blocks:', blocksError)

@@ -39,8 +39,9 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
   }, [tripId, cityId])
 
   const loadSuggestions = async () => {
+    console.log('[DayCard] loadSuggestions called, cityId:', cityId, 'tripId:', tripId)
     // Query by city_id if available, otherwise fall back to trip_id
-    const [{ data: attractionsData }, { data: restaurantsData }] = await Promise.all([
+    const [{ data: attractionsData, error: attrError }, { data: restaurantsData, error: restError }] = await Promise.all([
       cityId
         ? supabase.from('attractions').select('*').eq('city_id', cityId)
         : supabase.from('attractions').select('*').eq('trip_id', tripId),
@@ -48,6 +49,11 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
         ? supabase.from('restaurants').select('*').eq('city_id', cityId)
         : supabase.from('restaurants').select('*').eq('trip_id', tripId)
     ])
+
+    if (attrError) console.error('[DayCard] Error loading attractions:', attrError)
+    if (restError) console.error('[DayCard] Error loading restaurants:', restError)
+
+    console.log('[DayCard] Loaded:', attractionsData?.length || 0, 'attractions,', restaurantsData?.length || 0, 'restaurants')
 
     if (attractionsData) setAttractions(attractionsData)
     if (restaurantsData) setRestaurants(restaurantsData)
@@ -73,6 +79,9 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
 
   // Build timeline with dynamic times
   const timeline = useMemo<TimelineEntry[]>(() => {
+    console.log('[DayCard] Building timeline for date:', format(date, 'yyyy-MM-dd'))
+    console.log('[DayCard] Blocks:', blocks.length, 'Attractions:', attractions.length, 'Restaurants:', restaurants.length)
+
     const entries: TimelineEntry[] = []
 
     // Add flights
@@ -147,9 +156,15 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
 
       if (block.selected_attraction_id) {
         selectedItem = attractions.find(a => a.id === block.selected_attraction_id) || null
+        if (!selectedItem) {
+          console.warn('[DayCard] Block has selected_attraction_id but attraction not found:', block.selected_attraction_id)
+        }
         activityType = 'activity'
       } else if (block.selected_restaurant_id) {
         selectedItem = restaurants.find(r => r.id === block.selected_restaurant_id) || null
+        if (!selectedItem) {
+          console.warn('[DayCard] Block has selected_restaurant_id but restaurant not found:', block.selected_restaurant_id)
+        }
         activityType = 'restaurant'
       }
 

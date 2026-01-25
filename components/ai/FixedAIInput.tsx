@@ -37,12 +37,14 @@ export default function FixedAIInput({ tripId, onModificationComplete }: Props) 
       }
 
       const data = await response.json()
+      console.log('[FixedAIInput] API response:', data)
       setFeedback({ type: 'success', message: data.summary })
 
       // Clear feedback after 4 seconds
       setTimeout(() => setFeedback(null), 4000)
 
       // Notify parent to reload the plan
+      console.log('[FixedAIInput] Calling onModificationComplete')
       onModificationComplete()
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to modify plan'

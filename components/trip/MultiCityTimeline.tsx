@@ -45,16 +45,23 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
   const isOnline = useIsOnline()
 
   const loadTimeBlocks = useCallback(async (versionId: string) => {
+    console.log('[MultiCityTimeline] loadTimeBlocks called for version:', versionId)
     // Try to load from network first if online
     if (isOnline) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('time_blocks')
         .select('*')
         .eq('plan_version_id', versionId)
         .order('date')
         .order('start_time')
 
+      console.log('[MultiCityTimeline] Fetched time blocks:', data?.length, 'error:', error)
+
       if (data) {
+        console.log('[MultiCityTimeline] Setting timeBlocks state with', data.length, 'blocks')
+        // Log blocks with attractions
+        const blocksWithAttractions = data.filter(b => b.selected_attraction_id)
+        console.log('[MultiCityTimeline] Blocks with attractions:', blocksWithAttractions.length)
         setTimeBlocks(data)
         // Cache the data
         cacheTimeBlocks(trip.id, versionId, data)
@@ -158,17 +165,21 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
   }
 
   const loadAllVersions = async () => {
+    console.log('[MultiCityTimeline] loadAllVersions called, isOnline:', isOnline)
     // Try to load from network first if online
     if (isOnline) {
-      const { data: versions } = await supabase
+      const { data: versions, error } = await supabase
         .from('plan_versions')
         .select('*')
         .eq('trip_id', trip.id)
         .order('version_number', { ascending: true })
 
+      console.log('[MultiCityTimeline] Fetched versions:', versions?.length, 'error:', error)
+
       if (versions && versions.length > 0) {
         setAllVersions(versions)
         const latestVersion = versions[versions.length - 1]
+        console.log('[MultiCityTimeline] Setting current version to:', latestVersion.version_number, latestVersion.id)
         setCurrentVersion(latestVersion)
         // Cache the versions
         cacheAllVersions(trip.id, versions)
@@ -203,8 +214,10 @@ export default function MultiCityTimeline({ trip, flights, hotels, travelers, in
   }
 
   const handleModificationComplete = async () => {
+    console.log('[MultiCityTimeline] handleModificationComplete called, isOnline:', isOnline)
     if (isOnline) {
       await loadAllVersions()
+      console.log('[MultiCityTimeline] loadAllVersions completed')
     }
   }
 
