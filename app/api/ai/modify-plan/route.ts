@@ -300,6 +300,27 @@ CRITICAL REQUIREMENTS:
 
     console.log(`Applied ${modificationsMap.size} valid modifications out of ${modifiedPlan.timeBlocks.length} returned by AI`)
 
+    // Check if any modifications actually change data
+    let actualChanges = 0
+    for (const [blockId, modification] of modificationsMap.entries()) {
+      const block = currentTimeBlocks?.find(b => b.id === blockId)
+      if (!block) continue
+
+      const attractionChanged = modification.selectedAttractionId !== block.selected_attraction_id
+      const restaurantChanged = modification.selectedRestaurantId !== block.selected_restaurant_id
+
+      if (attractionChanged || restaurantChanged) {
+        actualChanges++
+        console.log(`Block ${blockId.substring(0, 8)}: attraction ${block.selected_attraction_id?.substring(0, 8) || 'null'} -> ${modification.selectedAttractionId?.substring(0, 8) || 'null'}, restaurant ${block.selected_restaurant_id?.substring(0, 8) || 'null'} -> ${modification.selectedRestaurantId?.substring(0, 8) || 'null'}`)
+      }
+    }
+
+    console.log(`Actual data changes: ${actualChanges} blocks`)
+
+    if (actualChanges === 0 && modifiedPlan.timeBlocks.length > 0) {
+      console.warn('AI returned modifications but none actually change any data')
+    }
+
     // Validate that modifications don't assign attractions to wrong cities
     for (const [blockId, modification] of modificationsMap.entries()) {
       const block = currentTimeBlocks?.find(b => b.id === blockId)
