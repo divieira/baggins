@@ -219,6 +219,15 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
     // Sort all entries by start time
     entries.sort((a, b) => a.startTime.localeCompare(b.startTime))
 
+    // Log summary
+    const blocksWithSelections = blocks.filter(b => b.selected_attraction_id || b.selected_restaurant_id).length
+    const activityEntries = entries.filter(e => e.type === 'activity' || e.type === 'restaurant').length
+    console.log(`[DayCard] Timeline built: ${blocks.length} blocks total, ${blocksWithSelections} with selections, ${activityEntries} rendered as activities`)
+
+    if (blocksWithSelections > activityEntries) {
+      console.warn(`[DayCard] WARNING: ${blocksWithSelections - activityEntries} blocks have selections that couldn't be rendered (attraction/restaurant not found)`)
+    }
+
     return entries
   }, [flights, hotel, blocks, attractions, restaurants, date])
 
