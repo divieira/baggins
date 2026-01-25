@@ -31,14 +31,22 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
   const [restaurants, setRestaurants] = useState<Restaurant[]>([])
   const supabase = createClient()
 
+  // Get city_id from blocks or hotel (all blocks on same day should have same city_id)
+  const cityId = blocks[0]?.city_id || hotel?.city_id
+
   useEffect(() => {
     loadSuggestions()
-  }, [tripId])
+  }, [tripId, cityId])
 
   const loadSuggestions = async () => {
+    // Query by city_id if available, otherwise fall back to trip_id
     const [{ data: attractionsData }, { data: restaurantsData }] = await Promise.all([
-      supabase.from('attractions').select('*').eq('trip_id', tripId),
-      supabase.from('restaurants').select('*').eq('trip_id', tripId)
+      cityId
+        ? supabase.from('attractions').select('*').eq('city_id', cityId)
+        : supabase.from('attractions').select('*').eq('trip_id', tripId),
+      cityId
+        ? supabase.from('restaurants').select('*').eq('city_id', cityId)
+        : supabase.from('restaurants').select('*').eq('trip_id', tripId)
     ])
 
     if (attractionsData) setAttractions(attractionsData)
@@ -80,13 +88,20 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
       })
     })
 
-    // Add hotel check-in (if hotel exists and has check-in date matching this day)
-    if (hotel && hotel.check_in_date) {
+    // Add hotel info (check-in on arrival day, just info on other days)
+    if (hotel) {
       try {
-        const hotelCheckinDate = new Date(hotel.check_in_date)
         const currentDate = new Date(date)
+        const currentDateStr = format(currentDate, 'yyyy-MM-dd')
 
-        if (hotelCheckinDate.toDateString() === currentDate.toDateString()) {
+        // Check if this is check-in day
+        const isCheckinDay = hotel.check_in_date === currentDateStr
+
+        // Check if this is during the stay (between check-in and check-out)
+        const isStayingHere = hotel.check_in_date && hotel.check_out_date &&
+          currentDateStr >= hotel.check_in_date && currentDateStr < hotel.check_out_date
+
+        if (isCheckinDay) {
           entries.push({
             id: `hotel-${hotel.id}`,
             type: 'hotel_checkin',
@@ -96,9 +111,20 @@ export default function DayCard({ date, flights, hotel, blocks, tripId, onBlockU
             subtitle: hotel.address,
             data: hotel
           })
+        } else if (isStayingHere) {
+          // Show hotel as info on other days during stay
+          entries.push({
+            id: `hotel-${hotel.id}-info`,
+            type: 'hotel_checkin', // Reuse same type for similar styling
+            startTime: '00:00', // Show at top
+            endTime: '00:00',
+            title: `Staying at ${hotel.name}`,
+            subtitle: hotel.address,
+            data: hotel
+          })
         }
       } catch (error) {
-        console.error('Error parsing hotel check-in date:', error)
+        console.error('Error parsing hotel dates:', error)
       }
     }
 
