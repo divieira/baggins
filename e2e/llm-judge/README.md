@@ -7,13 +7,30 @@ End-to-end tests that simulate real user behavior and use Claude as a **judge** 
 ```
 e2e/
   llm-judge/
-    types.ts              # Evaluation types, criteria thresholds
-    judge.ts              # TripJudge class - calls Claude to evaluate data
+    app-config.ts         # ALL app-specific selectors, URLs, DB schema, timeouts
+    page-helpers.ts       # Page Object Model — Playwright interactions via app-config
+    db-helpers.ts         # Database queries via app-config schema constants
+    types.ts              # Evaluation types, criteria thresholds (app-agnostic)
+    judge.ts              # TripJudge class — calls Claude to evaluate (app-agnostic)
     scenarios.ts          # Pre-defined test scenarios (Paris, Tokyo, Rome, Bangkok)
   llm-trip-creation.spec.ts     # Trip creation + LLM evaluation
   llm-trip-modification.spec.ts # Plan modification + LLM evaluation
   llm-user-simulation.spec.ts   # Full user lifecycle simulation
 ```
+
+### Abstraction Layers
+
+The test framework is split into **app-agnostic** and **app-specific** layers:
+
+| Layer | Files | What changes when... |
+|---|---|---|
+| **App config** (change this) | `app-config.ts` | ...UI selectors, routes, DB schema, or text labels change |
+| **Page helpers** (change if flow differs) | `page-helpers.ts` | ...the interaction flow changes (e.g., login becomes SSO) |
+| **DB helpers** (change if ORM differs) | `db-helpers.ts` | ...the database client or table structure changes |
+| **Judge** (app-agnostic) | `judge.ts`, `types.ts` | ...never (evaluates generic trip data) |
+| **Test specs** (app-agnostic) | `*.spec.ts` | ...never (pure test logic) |
+
+To adapt to a different travel planning app, modify `app-config.ts` (and possibly `page-helpers.ts` / `db-helpers.ts`) — the spec files and judge module stay untouched.
 
 ### How It Works
 
@@ -200,6 +217,39 @@ Edit `e2e/llm-judge/judge.ts` and add a new method to the `TripJudge` class, fol
 1. Builds a structured prompt
 2. Calls Claude with `this.callClaude(prompt)`
 3. Parses the JSON response
+
+### Adapting to a Different App
+
+To use this test framework with a different travel planning application:
+
+1. **Edit `app-config.ts`** — update selectors, routes, DB schema:
+   ```typescript
+   // Example: your app uses data-testid attributes
+   export const SELECTORS = {
+     timeBlockContainer: '[data-testid="time-block"]',
+     suggestionCard: '[data-testid="suggestion-card"]',
+     // ...
+   };
+
+   // Example: your app uses different routes
+   export const ROUTES = {
+     tripCreate: '/trips/new',
+     tripDetail: /\/trips\/(\d+)$/,
+     // ...
+   };
+
+   // Example: your DB uses different column names
+   export const DB = {
+     tables: { attractions: 'places', restaurants: 'dining_options' },
+     columns: { cuisineType: 'food_type', priceLevel: 'cost_tier' },
+   };
+   ```
+
+2. **Edit `page-helpers.ts`** if the interaction flow is different (e.g., multi-step login, different form layout).
+
+3. **Edit `db-helpers.ts`** if you use a different database client (e.g., Prisma instead of Supabase).
+
+4. **Judge module and spec files need no changes** — they work with generic trip data types.
 
 ### Adjusting the Pass Threshold
 
