@@ -17,6 +17,20 @@ CREATE TABLE trips (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Cities within a trip (multi-city support)
+CREATE TABLE cities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  country TEXT,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  city_order INTEGER NOT NULL DEFAULT 0,
+  latitude DECIMAL(10, 8),
+  longitude DECIMAL(11, 8),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Trip collaborators for sharing
 CREATE TABLE trip_collaborators (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -56,6 +70,7 @@ CREATE TABLE flights (
 CREATE TABLE hotels (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  city_id UUID REFERENCES cities(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   address TEXT NOT NULL,
   check_in_date DATE NOT NULL,
@@ -66,10 +81,11 @@ CREATE TABLE hotels (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Attractions pool
+-- Attractions pool (linked to city)
 CREATE TABLE attractions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  city_id UUID NOT NULL REFERENCES cities(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT NOT NULL,
   image_url TEXT,
@@ -85,10 +101,11 @@ CREATE TABLE attractions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Restaurants pool
+-- Restaurants pool (linked to city)
 CREATE TABLE restaurants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  city_id UUID NOT NULL REFERENCES cities(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT NOT NULL,
   image_url TEXT,
@@ -107,17 +124,20 @@ CREATE TABLE restaurants (
 CREATE TABLE plan_versions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  city_id UUID REFERENCES cities(id) ON DELETE CASCADE,
   version_number INTEGER NOT NULL,
-  plan_data JSONB NOT NULL,
+  summary TEXT,
+  plan_data JSONB NOT NULL DEFAULT '{}',
   created_by UUID NOT NULL REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(trip_id, version_number)
+  UNIQUE(trip_id, city_id, version_number)
 );
 
 -- Time blocks for daily planning
 CREATE TABLE time_blocks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  city_id UUID NOT NULL REFERENCES cities(id) ON DELETE CASCADE,
   plan_version_id UUID NOT NULL REFERENCES plan_versions(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   block_type TEXT NOT NULL CHECK (block_type IN ('morning', 'lunch', 'afternoon', 'dinner', 'evening')),
@@ -141,9 +161,9 @@ CREATE TABLE ai_interactions (
 
 -- Row Level Security (RLS) Policies
 
--- Enable RLS on all tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trip_collaborators ENABLE ROW LEVEL SECURITY;
 ALTER TABLE travelers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE flights ENABLE ROW LEVEL SECURITY;
@@ -154,14 +174,17 @@ ALTER TABLE plan_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE time_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_interactions ENABLE ROW LEVEL SECURITY;
 
--- Users: Can only view their own profile
+-- Users policies
 CREATE POLICY "Users can view own profile" ON users
   FOR SELECT USING (auth.uid() = id);
 
 CREATE POLICY "Users can update own profile" ON users
   FOR UPDATE USING (auth.uid() = id);
 
--- Trips: Can view if owner or collaborator
+CREATE POLICY "Users can insert own profile" ON users
+  FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- Trips policies
 CREATE POLICY "Users can view own trips" ON trips
   FOR SELECT USING (
     auth.uid() = user_id OR
@@ -189,25 +212,6 @@ CREATE POLICY "Users can update own trips" ON trips
 CREATE POLICY "Users can delete own trips" ON trips
   FOR DELETE USING (auth.uid() = user_id);
 
--- Trip collaborators
-CREATE POLICY "Users can view trip collaborators" ON trip_collaborators
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM trips
-      WHERE trips.id = trip_collaborators.trip_id
-      AND (trips.user_id = auth.uid() OR trip_collaborators.user_id = auth.uid())
-    )
-  );
-
-CREATE POLICY "Trip owners can manage collaborators" ON trip_collaborators
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM trips
-      WHERE trips.id = trip_collaborators.trip_id
-      AND trips.user_id = auth.uid()
-    )
-  );
-
 -- Helper function to check trip access
 CREATE OR REPLACE FUNCTION has_trip_access(trip_id_param UUID)
 RETURNS BOOLEAN AS $$
@@ -226,6 +230,32 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Cities policies
+CREATE POLICY "Users can view trip cities" ON cities
+  FOR SELECT USING (has_trip_access(trip_id));
+
+CREATE POLICY "Users can manage trip cities" ON cities
+  FOR ALL USING (has_trip_access(trip_id));
+
+-- Trip collaborators policies
+CREATE POLICY "Users can view trip collaborators" ON trip_collaborators
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM trips
+      WHERE trips.id = trip_collaborators.trip_id
+      AND (trips.user_id = auth.uid() OR trip_collaborators.user_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "Trip owners can manage collaborators" ON trip_collaborators
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM trips
+      WHERE trips.id = trip_collaborators.trip_id
+      AND trips.user_id = auth.uid()
+    )
+  );
 
 -- Apply access policies to related tables
 CREATE POLICY "Users can view trip travelers" ON travelers
@@ -276,17 +306,21 @@ CREATE POLICY "Users can view AI interactions" ON ai_interactions
 CREATE POLICY "Users can create AI interactions" ON ai_interactions
   FOR INSERT WITH CHECK (has_trip_access(trip_id) AND auth.uid() = user_id);
 
--- Indexes for performance
+-- Indexes
 CREATE INDEX idx_trips_user_id ON trips(user_id);
+CREATE INDEX idx_cities_trip_id ON cities(trip_id);
 CREATE INDEX idx_trip_collaborators_trip_id ON trip_collaborators(trip_id);
 CREATE INDEX idx_trip_collaborators_user_id ON trip_collaborators(user_id);
 CREATE INDEX idx_travelers_trip_id ON travelers(trip_id);
 CREATE INDEX idx_flights_trip_id ON flights(trip_id);
 CREATE INDEX idx_hotels_trip_id ON hotels(trip_id);
 CREATE INDEX idx_attractions_trip_id ON attractions(trip_id);
+CREATE INDEX idx_attractions_city_id ON attractions(city_id);
 CREATE INDEX idx_restaurants_trip_id ON restaurants(trip_id);
+CREATE INDEX idx_restaurants_city_id ON restaurants(city_id);
 CREATE INDEX idx_plan_versions_trip_id ON plan_versions(trip_id);
 CREATE INDEX idx_time_blocks_trip_id ON time_blocks(trip_id);
+CREATE INDEX idx_time_blocks_city_id ON time_blocks(city_id);
 CREATE INDEX idx_time_blocks_plan_version_id ON time_blocks(plan_version_id);
 CREATE INDEX idx_ai_interactions_trip_id ON ai_interactions(trip_id);
 

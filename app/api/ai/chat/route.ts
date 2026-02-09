@@ -1,125 +1,80 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { callClaude } from "@/lib/ai/client";
+import { buildChatPrompt } from "@/lib/ai/prompts";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-})
-
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { tripId, message } = await request.json()
-
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get trip context
+    const { trip_id, message } = await request.json();
+
+    if (!trip_id || !message) {
+      return NextResponse.json({ error: "trip_id and message are required" }, { status: 400 });
+    }
+
+    // Get trip data
     const { data: trip } = await supabase
-      .from('trips')
-      .select('*')
-      .eq('id', tripId)
-      .single()
+      .from("trips")
+      .select("*")
+      .eq("id", trip_id)
+      .single();
 
     if (!trip) {
-      return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
+      return NextResponse.json({ error: "Trip not found" }, { status: 404 });
     }
 
-    // Get travelers
     const { data: travelers } = await supabase
-      .from('travelers')
-      .select('*')
-      .eq('trip_id', tripId)
+      .from("travelers")
+      .select("name, age")
+      .eq("trip_id", trip_id);
 
-    // Get current attractions and restaurants
-    const [{ data: attractions }, { data: restaurants }] = await Promise.all([
-      supabase.from('attractions').select('*').eq('trip_id', tripId),
-      supabase.from('restaurants').select('*').eq('trip_id', tripId)
-    ])
+    const { data: cities } = await supabase
+      .from("cities")
+      .select("name, country")
+      .eq("trip_id", trip_id);
 
-    // Build context for Claude
-    const context = `
-Trip Details:
-- Destination: ${trip.destination}
-- Dates: ${trip.start_date} to ${trip.end_date}
-- Travelers: ${travelers?.map((t: any) => `${t.name}${t.age ? ` (${t.age})` : ''}`).join(', ') || 'Solo'}
+    // Get recent chat history
+    const { data: recentHistory } = await supabase
+      .from("ai_interactions")
+      .select("message, response")
+      .eq("trip_id", trip_id)
+      .order("created_at", { ascending: false })
+      .limit(5);
 
-Current Attractions (${attractions?.length || 0}):
-${attractions?.slice(0, 5).map((a: any) => `- ${a.name}: ${a.description}`).join('\n') || 'None yet'}
+    const prompt = buildChatPrompt(
+      message,
+      trip.destination,
+      { start: trip.start_date, end: trip.end_date },
+      travelers || [],
+      cities || [],
+      (recentHistory || []).reverse()
+    );
 
-Current Restaurants (${restaurants?.length || 0}):
-${restaurants?.slice(0, 5).map((r: any) => `- ${r.name}: ${r.description}`).join('\n') || 'None yet'}
-    `.trim()
+    const response = await callClaude(
+      "You are a helpful travel planning assistant. Be concise and practical.",
+      prompt
+    );
 
-    // Get previous conversation context
-    const { data: previousInteractions } = await supabase
-      .from('ai_interactions')
-      .select('*')
-      .eq('trip_id', tripId)
-      .order('created_at', { ascending: false })
-      .limit(5)
+    // Store interaction
+    await supabase.from("ai_interactions").insert({
+      trip_id,
+      user_id: user.id,
+      message,
+      response,
+    });
 
-    const conversationHistory = previousInteractions?.reverse().flatMap((interaction: any) => [
-      { role: 'user' as const, content: interaction.message },
-      { role: 'assistant' as const, content: interaction.response }
-    ]) || []
-
-    // Get AI response
-    const aiMessage = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 2048,
-      system: `You are a helpful travel planning assistant. You help users plan their trips by suggesting attractions, restaurants, and activities based on their preferences.
-
-${context}
-
-Guidelines:
-- Be helpful, friendly, and concise
-- Make personalized suggestions based on the travelers (especially if there are kids)
-- Consider the destination and trip dates
-- If asked to add new suggestions, describe what would be added (but note that actual changes require generating new suggestions)
-- Help users optimize their itinerary
-- Be enthusiastic about travel!`,
-      messages: [
-        ...conversationHistory,
-        { role: 'user', content: message }
-      ]
-    })
-
-    const content = aiMessage.content[0]
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type')
-    }
-
-    const response = content.text
-
-    // Save interaction to database
-    const { data: savedInteraction, error: saveError } = await supabase
-      .from('ai_interactions')
-      .insert({
-        trip_id: tripId,
-        user_id: user.id,
-        message,
-        response
-      })
-      .select()
-      .single()
-
-    if (saveError) {
-      console.error('Error saving interaction:', saveError)
-    }
-
-    return NextResponse.json({
-      id: savedInteraction?.id || Date.now().toString(),
-      response
-    })
-  } catch (error: any) {
-    console.error('Error in AI chat:', error)
+    return NextResponse.json({ response });
+  } catch (err) {
+    console.error("Chat error:", err);
     return NextResponse.json(
-      { error: error.message || 'Failed to get AI response' },
+      { error: err instanceof Error ? err.message : "Chat failed" },
       { status: 500 }
-    )
+    );
   }
 }
