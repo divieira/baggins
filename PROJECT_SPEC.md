@@ -42,14 +42,7 @@ A natural-language string such as:
 > "We're going to Santiago Jan 10-14 then Pucon Jan 14-18. Family of 4 — me (38), wife Maria (36), kids Tomas (10) and Sofia (7). Flying LATAM LA401 from Lima 8am arriving Santiago 1pm."
 
 ### Required Extraction
-The AI must extract and create records for:
-
-| Entity | Required Fields | Notes |
-|--------|----------------|-------|
-| **Cities** | name, start_date, end_date, order_index | Multiple cities supported. Assume current year if omitted. |
-| **Travelers** | name, age, relationship | Infer ages from context ("my 7-year-old son"). |
-| **Flights** | date, departure/arrival airport & time, airline, flight_number | Optional — only if mentioned. |
-| **Hotels** | name, address, check_in/check_out dates, latitude, longitude, city assignment | Optional — only if mentioned. Coordinates must be realistic for the city. |
+The AI must extract: **cities** (with date ranges and ordering), **travelers** (with ages and relationships), **flights** (if mentioned), and **hotels** (if mentioned, with realistic coordinates). Multiple cities are supported. Year is assumed if omitted.
 
 ### Post-Parsing Pipeline
 After extraction the system must automatically:
@@ -74,38 +67,9 @@ After extraction the system must automatically:
 ## 4. AI Suggestion Generation
 
 ### Goal
-For a given city and traveler group, produce a pool of attractions and restaurants.
+For a given city and traveler group, produce ~10 attractions and ~10 restaurants. Each suggestion must include a name, description, category/cuisine, real coordinates for the city, opening/closing hours (or null if always open), kid-friendliness, and highlights.
 
-### Output Schema — Attractions (×10 per city)
-
-| Field | Type | Constraints |
-|-------|------|-------------|
-| name | string | Unique within the city |
-| description | string | 1-3 sentences |
-| category | string | e.g., "museum", "park", "landmark" |
-| latitude | number | Valid coordinate for the city |
-| longitude | number | Valid coordinate for the city |
-| opening_time | string (HH:MM) or null | null = always open |
-| closing_time | string (HH:MM) or null | |
-| duration_minutes | integer | Typical visit length |
-| is_kid_friendly | boolean | |
-| min_age | integer or null | |
-| highlights | string[] | 2-4 notable features |
-
-### Output Schema — Restaurants (×10 per city)
-
-| Field | Type | Constraints |
-|-------|------|-------------|
-| name | string | Unique within the city |
-| description | string | 1-3 sentences |
-| cuisine_type | string | e.g., "Italian", "Seafood" |
-| latitude | number | Valid coordinate for the city |
-| longitude | number | Valid coordinate for the city |
-| opening_time | string (HH:MM) or null | |
-| closing_time | string (HH:MM) or null | |
-| price_level | integer | 1-4 ($ to $$$$) |
-| is_kid_friendly | boolean | |
-| highlights | string[] | 2-4 notable features |
+Attractions should additionally include estimated visit duration and minimum age. Restaurants should include a price level (1-4) and cuisine type.
 
 ### Acceptance Criteria
 | # | Criterion |
